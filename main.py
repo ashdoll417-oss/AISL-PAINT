@@ -1,15 +1,15 @@
 """
 FastAPI Main Application for Aviation ERP
-Connects to Supabase inventory table
+Connects to Supabase aviation_inventory table
 
 Home Route: Returns time-based greeting
-Inventory Route: Fetches items from inventory table with filters
+Inventory Route: Fetches items from aviation_inventory table with special handling
 """
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 
 from config import settings, get_supabase_client
@@ -44,17 +44,23 @@ app.add_middleware(
 # =============================================================================
 
 class InventoryItem(BaseModel):
-    """Individual inventory item."""
-    id: int
+    """Individual inventory item from aviation_inventory table."""
     part_number: str
-    description: str
-    category: str
-    material_type: Optional[str] = None
-    color: Optional[str] = None
+    description: Optional[str] = None
+    opening_stock: Optional[float] = None
+    uom: Optional[str] = None
+    cont: Optional[float] = None
+    sold_stock: Optional[float] = None
+    in_house: Optional[float] = None
     current_stock: float
-    unit: str
-    stock_display: str = Field(..., description="Stock with unit (e.g., '180 KG')")
-    is_available: bool = Field(..., description="Whether item is in stock")
+    batch_no: Optional[str] = None
+    dom: Optional[str] = None
+    category: Optional[str] = None
+    # Custom fields added by API
+    stock_display: Optional[str] = Field(default=None, description="Stock with unit")
+    is_available: bool = Field(default=False, description="Whether item is in stock")
+    stock_unit: Optional[str] = Field(default=None, description="Stock unit (KG/L/Linear Meters)")
+    notes: Optional[str] = Field(default=None, description="Additional notes for paint kits")
 
 
 class InventoryResponse(BaseModel):
@@ -69,36 +75,108 @@ class InventoryResponse(BaseModel):
 # HELPER FUNCTIONS
 # =============================================================================
 
-def build_inventory_items(rows: list) -> List[InventoryItem]:
+def is_paint_kit(description: str, uom: str) -> bool:
     """
-    Build inventory items from database rows with stock_display.
+    Check if the product is a paint kit.
     
     Args:
-        rows: List of inventory rows from Supabase
+        description: Product description
+        uom: Unit of measurement
+    
+    Returns:
+        True if product is a paint kit, False otherwise
+    """
+    if not description or not uom:
+        return False
+    
+    description_upper = description.upper()
+    uom_upper = uom.upper()
+    
+    # Check for paint kit indicators in description
+    paint_kit_indicators = ['KIT', 'PAINT KIT', 'TOPCOAT', 'PRIMER', 'HARDENER', 'THINNER']
+    
+    # Must be KG and have paint-related keywords
+    is_kg = uom_upper == 'KG'
+    has_paint_keyword = any(indicator in description_upper for indicator in paint_kit_indicators)
+    
+    return is_kg and has_paint_keyword
+
+
+def get_stock_unit(description: str, current_stock: float, uom: str) -> str:
+    """
+    Determine the stock unit for display.
+    
+    For AERMAT and CARPET items, use 'Linear Meters'.
+    Otherwise, use the provided uom.
+    
+    Args:
+        description: Product description
+        current_stock: Current stock quantity
+        uom: Unit of measurement
+    
+    Returns:
+        Stock unit string
+    """
+    if not description:
+        return uom or ""
+    
+    description_upper = description.upper()
+    
+    # Check for AERMAT or CARPET in description
+    if 'AERMAT' in description_upper or 'CARPET' in description_upper:
+        return "Linear Meters"
+    
+    return uom or ""
+
+
+def build_inventory_items(rows: list) -> List[InventoryItem]:
+    """
+    Build inventory items from database rows with enhanced display fields.
+    
+    Args:
+        rows: List of inventory rows from Supabase aviation_inventory table
         
     Returns:
-        List of InventoryItem objects
+        List of InventoryItem objects with calculated fields
     """
     items = []
     for row in rows:
+        # Get current stock
         current_stock = float(row.get("current_stock", 0)) if row.get("current_stock") else 0
-        unit = row.get("unit", "")
+        uom = row.get("uom", "")
+        description = row.get("description", "")
         
-        # Create stock_display with unit (e.g., "180 KG", "10 L")
-        stock_display = f"{current_stock} {unit}" if current_stock > 0 else "Out of Stock"
+        # Determine stock unit (Linear Meters for AERMAT/CARPET)
+        stock_unit = get_stock_unit(description, current_stock, uom)
         
-        items.append(InventoryItem(
-            id=row.get("id"),
+        # Create stock_display with unit
+        stock_display = f"{current_stock} {stock_unit}" if current_stock > 0 else "Out of Stock"
+        
+        # Check if it's a paint kit (KG + paint-related description)
+        notes = None
+        if is_paint_kit(description, uom):
+            notes = "NOTE: This is a paint kit. The 1:1:1 ratio logic applies - for every 1KG of paint, 1KG of hardener and 1KG of thinner are required for proper mixing."
+        
+        # Create inventory item with all columns from aviation_inventory
+        item = InventoryItem(
             part_number=row.get("part_number", ""),
-            description=row.get("description", ""),
-            category=row.get("category", ""),
-            material_type=row.get("material_type"),
-            color=row.get("color"),
+            description=description,
+            opening_stock=float(row.get("opening_stock")) if row.get("opening_stock") else None,
+            uom=uom,
+            cont=float(row.get("cont")) if row.get("cont") else None,
+            sold_stock=float(row.get("sold_stock")) if row.get("sold_stock") else None,
+            in_house=float(row.get("in_house")) if row.get("in_house") else None,
             current_stock=current_stock,
-            unit=unit,
+            batch_no=row.get("batch_no"),
+            dom=str(row.get("dom")) if row.get("dom") else None,
+            category=row.get("category"),
+            # Custom fields
             stock_display=stock_display,
-            is_available=current_stock > 0
-        ))
+            is_available=current_stock > 0,
+            stock_unit=stock_unit,
+            notes=notes
+        )
+        items.append(item)
     
     return items
 
@@ -112,16 +190,20 @@ async def root():
     """
     Root endpoint - returns time-based greeting.
     
-    Before 12 PM: 'Good Morning, AISL Aviation Team'
-    12 PM - 6 PM: 'Good Afternoon'
-    After 6 PM: 'Good Evening'
+    Time-based greeting:
+    - 05:00-11:59: 'Good Morning, AISL Aviation Team'
+    - 12:00-17:59: 'Good Afternoon'
+    - Otherwise (18:00-04:59): 'Good Evening'
     """
     now = datetime.now()
     current_hour = now.hour
     
-    if current_hour < 12:
+    # 05:00-11:59 = Good Morning
+    # 12:00-17:59 = Good Afternoon
+    # Otherwise (18:00-04:59) = Good Evening
+    if 5 <= current_hour < 12:
         greeting = "Good Morning, AISL Aviation Team"
-    elif current_hour < 18:  # 6 PM
+    elif 12 <= current_hour < 18:
         greeting = "Good Afternoon"
     else:
         greeting = "Good Evening"
@@ -142,24 +224,34 @@ async def get_inventory(
     )
 ):
     """
-    Get inventory items from the inventory table.
+    Get inventory items from the aviation_inventory table.
+    
+    Returns all columns from the Supabase aviation_inventory table with:
+    - stock_display: Formatted stock with unit (e.g., '180 KG', '50 Linear Meters')
+    - is_available: Boolean indicating if item is in stock
+    - stock_unit: The unit to display (KG/L/Linear Meters)
+    - notes: Additional notes for paint kits (1:1:1 ratio logic)
+    
+    Special handling:
+    - AERMAT/CARPET items: Stock displayed in 'Linear Meters'
+    - Paint kits (KG + paint keywords): Includes 1:1:1 ratio note
     
     Query Parameters:
     - type: Filter by 'carpet' or 'paint'
     
     Returns:
-        Inventory items with stock_display showing unit (KG/L/M)
+        Inventory items with all columns and calculated fields
     
     Examples:
     - /inventory - All items
-    - /inventory?type=carpet - Only Woven, Econyl, Aermat items
-    - /inventory?type=paint - Only Primers and Hardeners
+    - /inventory?type=carpet - Only carpet items
+    - /inventory?type=paint - Only paint items
     """
     supabase = get_supabase_client()
     
     try:
-        # Fetch all items from inventory table
-        response = supabase.table("inventory").select("*").execute()
+        # Fetch all items from aviation_inventory table
+        response = supabase.table("aviation_inventory").select("*").execute()
         
         if not response.data:
             return InventoryResponse(
@@ -173,15 +265,18 @@ async def get_inventory(
         filtered_items = response.data
         
         if type and type.lower() == "carpet":
-            # Filter for carpet items: Woven, Econyl, Aermat
+            # Filter for carpet items: Aermat, Carpet
             filtered_items = [
                 item for item in response.data 
-                if item.get("category", "").lower() == "carpet"
+                if item.get("category", "").lower() == "carpet" or
+                   (item.get("description") and 
+                    ('AERMAT' in item.get("description", "").upper() or 
+                     'CARPET' in item.get("description", "").upper()))
             ]
             message = f"Showing carpet items. Found {len(filtered_items)} item(s)."
             
         elif type and type.lower() == "paint":
-            # Filter for paint items: Primers, Hardeners
+            # Filter for paint items
             filtered_items = [
                 item for item in response.data 
                 if item.get("category", "").lower() == "paint"
@@ -191,7 +286,7 @@ async def get_inventory(
         else:
             message = f"Showing all inventory items. Found {len(filtered_items)} item(s)."
         
-        # Build inventory items with stock_display
+        # Build inventory items with enhanced display fields
         inventory_items = build_inventory_items(filtered_items)
         
         return InventoryResponse(
@@ -232,4 +327,3 @@ if __name__ == "__main__":
     print("=" * 60)
     
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
