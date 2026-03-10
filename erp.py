@@ -191,6 +191,38 @@ class KitRequirementResponse(BaseModel):
 
 
 # =============================================================================
+# INVENTORY MODELS (Carpet Types)
+# =============================================================================
+
+class CarpetItem(BaseModel):
+    """Individual carpet item in inventory."""
+    id: Optional[str] = Field(default=None, description="Product UUID")
+    sku: str = Field(..., description="Product SKU")
+    name: str = Field(..., description="Product name")
+    category: str = Field(..., description="Carpet category")
+    quantity: int = Field(..., description="Current stock quantity")
+    quantity_display: str = Field(..., description="Display string for quantity (e.g., '0' or 'Out of Stock')")
+    is_available: bool = Field(..., description="Whether item is in stock")
+
+
+class InventoryResponse(BaseModel):
+    """Response model for /inventory endpoint."""
+    success: bool
+    message: str
+    categories: dict = Field(..., description="Inventory grouped by carpet category")
+    total_items: int = Field(..., description="Total number of carpet types")
+
+
+# Define the four carpet categories
+CARPET_CATEGORIES = {
+    "CARPET WOVEN": ["CARPET WOVEN", "Woven Carpet", "Woven"],
+    "CARPET ECONYL RIPS": ["CARPET ECONYL RIPS", "Econyl Rips", "ECONYL RIPS"],
+    "AERMAT 9000/992 GREY": ["AERMAT 9000/992 GREY", "AERMAT 9000/992", "9000/992 GREY"],
+    "AERMAT 9000/8451 BLUE": ["AERMAT 9000/8451 BLUE", "AERMAT 9000/8451", "9000/8451 BLUE"]
+}
+
+
+# =============================================================================
 # SALES CONFIRM MODELS (New)
 # =============================================================================
 
@@ -261,11 +293,32 @@ def get_product_with_unit(supabase, product_id: str) -> Optional[dict]:
 
 @app.get("/")
 async def root():
-    """Root endpoint - returns API information."""
+    """
+    Root endpoint - returns API information with time-based greeting.
+    
+    Detects the current server time and returns an appropriate greeting:
+    - Before 12 PM: 'Good Morning, AISL Aviation Team'
+    - Between 12 PM and 6 PM: 'Good Afternoon'
+    - After 6 PM: 'Good Evening'
+    """
+    from datetime import datetime
+    
+    # Get current server time
+    now = datetime.now()
+    current_hour = now.hour
+    
+    # Determine greeting based on time
+    if current_hour < 12:
+        greeting = "Good Morning, AISL Aviation Team"
+    elif current_hour < 18:  # 6 PM
+        greeting = "Good Afternoon"
+    else:
+        greeting = "Good Evening"
+    
     return {
-        "name": "Aviation ERP API",
-        "version": "1.0.0",
+        "message": greeting,
         "status": "running",
+        "version": "1.0.0",
         "docs": "/docs",
         "allowed_origins": settings.get_cors_origins()
     }
@@ -288,6 +341,176 @@ async def health_check():
         "database": db_status,
         "cors_origins": settings.get_cors_origins()
     }
+
+
+# =============================================================================
+# INVENTORY ENDPOINT (Carpet Types)
+# =============================================================================
+
+def match_carpet_category(product_name: str) -> str | None:
+    """
+    Match a product name to one of the four carpet categories.
+    
+    Args:
+        product_name: Name of the product from Supabase
+        
+    Returns:
+        Category name if matched, None otherwise
+    """
+    if not product_name:
+        return None
+    
+    product_name_lower = product_name.lower()
+    
+    # Check each category
+    for category, keywords in CARPET_CATEGORIES.items():
+        for keyword in keywords:
+            if keyword.lower() in product_name_lower:
+                return category
+    
+    return None
+
+
+@app.get("/inventory", response_model=InventoryResponse)
+async def get_inventory():
+    """
+    Get inventory for the four specific carpet types.
+    
+    Connects to Supabase 'products' table and filters for:
+    - CARPET WOVEN (material_type: WOVEN)
+    - CARPET ECONYL RIPS (material_type: ECONYL)
+    - AERMAT 9000/992 GREY (material_type: AERMAT, color: GREY)
+    - AERMAT 9000/8451 BLUE (material_type: AERMAT, color: BLUE)
+    
+    Uses 'color' column to distinguish GREY vs BLUE Aermat 9000
+    Uses 'material_type' column to distinguish WOVEN vs ECONYL
+    
+    If quantities haven't been added yet, returns '0' or 'Out of Stock' placeholder.
+    
+    Returns:
+        Inventory response with categories and items
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Fetch all products from the database, including color and material_type columns
+        response = supabase.table("products").select(
+            "id, sku, name, current_stock_level, color, material_type"
+        ).execute()
+        
+        if not response.data:
+            # No products found - return categories with placeholder items
+            categories = {
+                "CARPET WOVEN": [],
+                "CARPET ECONYL RIPS": [],
+                "AERMAT 9000/992 GREY": [],
+                "AERMAT 9000/8451 BLUE": []
+            }
+            
+            return InventoryResponse(
+                success=True,
+                message="No products found in database. Returning placeholder categories.",
+                categories=categories,
+                total_items=0
+            )
+        
+        # Initialize categories
+        categories = {
+            "CARPET WOVEN": [],
+            "CARPET ECONYL RIPS": [],
+            "AERMAT 9000/992 GREY": [],
+            "AERMAT 9000/8451 BLUE": []
+        }
+        
+        total_items = 0
+        
+        # Process each product
+        for product in response.data:
+            product_name = product.get("name", "")
+            color = product.get("color", "").upper() if product.get("color") else ""
+            material_type = product.get("material_type", "").upper() if product.get("material_type") else ""
+            
+            # Determine category based on material_type and color
+            category = None
+            
+            # Check for AERMAT products (check both name and material_type)
+            is_aermat = "AERMAT" in product_name.upper() or material_type == "AERMAT"
+            
+            if is_aermat:
+                # AERMAT 9000 - distinguish by color
+                if "GREY" in color or "992" in product_name.upper():
+                    category = "AERMAT 9000/992 GREY"
+                elif "BLUE" in color or "8451" in product_name.upper():
+                    category = "AERMAT 9000/8451 BLUE"
+                else:
+                    # If color is not specified but name contains AERMAT, try to match by name
+                    if "GREY" in product_name.upper():
+                        category = "AERMAT 9000/992 GREY"
+                    elif "BLUE" in product_name.upper():
+                        category = "AERMAT 9000/8451 BLUE"
+            
+            # Check for WOVEN carpet
+            elif material_type == "WOVEN" or "WOVEN" in product_name.upper():
+                category = "CARPET WOVEN"
+            
+            # Check for ECONYL RIPS
+            elif material_type == "ECONYL" or "ECONYL" in product_name.upper() or "RIPS" in product_name.upper():
+                category = "CARPET ECONYL RIPS"
+            
+            # Fallback: check name keywords if material_type is not set
+            else:
+                category = match_carpet_category(product_name)
+            
+            if category:
+                # Get quantity, handle None or missing values
+                stock_level = product.get("current_stock_level")
+                
+                if stock_level is None:
+                    quantity = 0
+                else:
+                    try:
+                        quantity = int(float(stock_level))
+                    except (ValueError, TypeError):
+                        quantity = 0
+                
+                # Create display string
+                if quantity > 0:
+                    quantity_display = str(quantity)
+                else:
+                    quantity_display = "Out of Stock"
+                
+                # Create detailed name with color info if available
+                display_name = product_name
+                if color and color not in product_name.upper():
+                    display_name = f"{product_name} ({color})"
+                
+                # Create carpet item
+                carpet_item = CarpetItem(
+                    id=product.get("id"),
+                    sku=product.get("sku", "N/A"),
+                    name=display_name,
+                    category=category,
+                    quantity=quantity,
+                    quantity_display=quantity_display,
+                    is_available=quantity > 0
+                )
+                
+                categories[category].append(carpet_item)
+                total_items += 1
+        
+        return InventoryResponse(
+            success=True,
+            message=f"Successfully retrieved inventory. Found {total_items} carpet type(s).",
+            categories=categories,
+            total_items=total_items
+        )
+        
+    except Exception as e:
+        # Handle database connection errors gracefully
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching inventory: {str(e)}"
+        )
 
 
 @app.get("/api/products/{product_id}", response_model=ProductResponse)
