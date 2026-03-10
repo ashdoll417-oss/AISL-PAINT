@@ -211,7 +211,26 @@ class InventoryResponse(BaseModel):
     message: str
     categories: dict = Field(..., description="Inventory grouped by carpet category")
     total_items: int = Field(..., description="Total number of carpet types")
+    paint_items: Optional[List["PaintItem"]] = Field(default=None, description="Paint products inventory")
 
+
+class PaintItem(BaseModel):
+    """Individual paint item in inventory."""
+    id: Optional[str] = Field(default=None, description="Product UUID")
+    sku: str = Field(..., description="Product SKU (Part Number)")
+    name: str = Field(..., description="Product name")
+    current_stock: float = Field(..., description="Current stock quantity")
+    unit: str = Field(..., description="Unit of measurement (KG, L, etc.)")
+    stock_display: str = Field(..., description="Display string for stock (e.g., '6 KG', '10 L')")
+    is_available: bool = Field(..., description="Whether item is in stock")
+
+
+# Define the specific paint products to display
+PAINT_PRODUCTS_SKUS = [
+    "113-22-633B-3-033",  # EPOXY PRIMER 6KG
+    "470-10-9100-9-003",  # WHITE TOPCOAT 10KG
+    "405-03-0000-0-232",  # TOPCOAT HARDENER 5L
+]
 
 # Define the four carpet categories
 CARPET_CATEGORIES = {
@@ -372,23 +391,28 @@ def match_carpet_category(product_name: str) -> str | None:
 
 
 @app.get("/inventory", response_model=InventoryResponse)
-async def get_inventory():
+async def get_inventory(category: Optional[str] = None):
     """
-    Get inventory for the four specific carpet types.
+    Get inventory for the four specific carpet types AND paint products.
     
     Connects to Supabase 'products' table and filters for:
-    - CARPET WOVEN (material_type: WOVEN)
-    - CARPET ECONYL RIPS (material_type: ECONYL)
-    - AERMAT 9000/992 GREY (material_type: AERMAT, color: GREY)
-    - AERMAT 9000/8451 BLUE (material_type: AERMAT, color: BLUE)
+    - Flooring-Carpet (WOVEN and ECONYL RIPS)
+    - AERMAT 9000/992 GREY
+    - AERMAT 9000/8451 BLUE
     
-    Uses 'color' column to distinguish GREY vs BLUE Aermat 9000
-    Uses 'material_type' column to distinguish WOVEN vs ECONYL
+    Also fetches specific paint products:
+    - Part: 113-22-633B-3-033 (EPOXY PRIMER 6KG)
+    - Part: 470-10-9100-9-003 (WHITE TOPCOAT 10KG)
+    - Part: 405-03-0000-0-232 (TOPCOAT HARDENER 5L)
+    
+    Query Parameters:
+    - category: Filter by category (e.g., 'carpet', 'paint', 'all')
     
     If quantities haven't been added yet, returns '0' or 'Out of Stock' placeholder.
+    If a paint product is not found, returns 'Item Pending Manual Entry'.
     
     Returns:
-        Inventory response with categories and items
+        Inventory response with categories, paint items, and totals
     """
     supabase = get_supabase_client()
     
@@ -398,40 +422,118 @@ async def get_inventory():
             "id, sku, name, current_stock_level, color, material_type"
         ).execute()
         
+        # Fetch paint products by their SKUs
+        paint_response = supabase.table("products").select(
+            "id, sku, name, current_stock_level, sales_unit_id, base_unit_id"
+        ).in("sku", PAINT_PRODUCTS_SKUS).execute()
+        
+        # Get unit symbols for paint products
+        paint_unit_map = {}
+        all_unit_ids = set()
+        for product in paint_response.data:
+            if product.get("sales_unit_id"):
+                all_unit_ids.add(product["sales_unit_id"])
+            if product.get("base_unit_id"):
+                all_unit_ids.add(product["base_unit_id"])
+        
+        if all_unit_ids:
+            units_response = supabase.table("units").select("id, symbol").in("id", list(all_unit_ids)).execute()
+            for unit in units_response.data:
+                paint_unit_map[unit["id"]] = unit["symbol"]
+        
         if not response.data:
             # No products found - return categories with placeholder items
             categories = {
-                "CARPET WOVEN": [],
-                "CARPET ECONYL RIPS": [],
+                "Flooring-Carpet": {
+                    "WOVEN": [],
+                    "ECONYL RIPS": []
+                },
                 "AERMAT 9000/992 GREY": [],
                 "AERMAT 9000/8451 BLUE": []
             }
+            
+            # Build paint items list with "Item Pending Manual Entry" for missing products
+            paint_items = build_paint_items(paint_response.data, paint_unit_map, PAINT_PRODUCTS_SKUS)
+            
+            # Filter based on category parameter
+            if category == "carpet":
+                return InventoryResponse(
+                    success=True,
+                    message="No carpet products found in database.",
+                    categories={"Flooring-Carpet": {"WOVEN": [], "ECONYL RIPS": []}, "AERMAT 9000/992 GREY": [], "AERMAT 9000/8451 BLUE": []},
+                    total_items=0,
+                    paint_items=[]
+                )
+            elif category == "paint":
+                return InventoryResponse(
+                    success=True,
+                    message="No products found in database.",
+                    categories={},
+                    total_items=0,
+                    paint_items=paint_items
+                )
             
             return InventoryResponse(
                 success=True,
                 message="No products found in database. Returning placeholder categories.",
                 categories=categories,
-                total_items=0
+                total_items=0,
+                paint_items=paint_items
             )
         
-        # Initialize categories
+        # Initialize categories with new structure
         categories = {
-            "CARPET WOVEN": [],
-            "CARPET ECONYL RIPS": [],
+            "Flooring-Carpet": {
+                "WOVEN": [],
+                "ECONYL RIPS": []
+            },
             "AERMAT 9000/992 GREY": [],
             "AERMAT 9000/8451 BLUE": []
         }
         
         total_items = 0
         
-        # Process each product
+        # Process each product for carpet categories
         for product in response.data:
             product_name = product.get("name", "")
             color = product.get("color", "").upper() if product.get("color") else ""
             material_type = product.get("material_type", "").upper() if product.get("material_type") else ""
             
+            # Get quantity, handle None or missing values
+            stock_level = product.get("current_stock_level")
+            if stock_level is None:
+                quantity = 0
+            else:
+                try:
+                    quantity = int(float(stock_level))
+                except (ValueError, TypeError):
+                    quantity = 0
+            
+            # Create display string
+            if quantity > 0:
+                quantity_display = str(quantity)
+            else:
+                quantity_display = "Out of Stock"
+            
+            # Create detailed name with color info if available
+            display_name = product_name
+            if color and color not in product_name.upper():
+                display_name = f"{product_name} ({color})"
+            
+            # Create carpet item
+            carpet_item = CarpetItem(
+                id=product.get("id"),
+                sku=product.get("sku", "N/A"),
+                name=display_name,
+                category="",  # Will be set based on subcategory
+                quantity=quantity,
+                quantity_display=quantity_display,
+                is_available=quantity > 0
+            )
+            
             # Determine category based on material_type and color
-            category = None
+            category_type = None
+            subcategory = None
             
             # Check for AERMAT products (check both name and material_type)
             is_aermat = "AERMAT" in product_name.upper() or material_type == "AERMAT"
@@ -439,70 +541,88 @@ async def get_inventory():
             if is_aermat:
                 # AERMAT 9000 - distinguish by color
                 if "GREY" in color or "992" in product_name.upper():
-                    category = "AERMAT 9000/992 GREY"
+                    category_type = "AERMAT 9000/992 GREY"
                 elif "BLUE" in color or "8451" in product_name.upper():
-                    category = "AERMAT 9000/8451 BLUE"
+                    category_type = "AERMAT 9000/8451 BLUE"
                 else:
                     # If color is not specified but name contains AERMAT, try to match by name
                     if "GREY" in product_name.upper():
-                        category = "AERMAT 9000/992 GREY"
+                        category_type = "AERMAT 9000/992 GREY"
                     elif "BLUE" in product_name.upper():
-                        category = "AERMAT 9000/8451 BLUE"
+                        category_type = "AERMAT 9000/8451 BLUE"
             
             # Check for WOVEN carpet
             elif material_type == "WOVEN" or "WOVEN" in product_name.upper():
-                category = "CARPET WOVEN"
+                category_type = "Flooring-Carpet"
+                subcategory = "WOVEN"
             
             # Check for ECONYL RIPS
             elif material_type == "ECONYL" or "ECONYL" in product_name.upper() or "RIPS" in product_name.upper():
-                category = "CARPET ECONYL RIPS"
+                category_type = "Flooring-Carpet"
+                subcategory = "ECONYL RIPS"
             
             # Fallback: check name keywords if material_type is not set
             else:
-                category = match_carpet_category(product_name)
+                fallback_cat = match_carpet_category(product_name)
+                if fallback_cat:
+                    if "WOVEN" in fallback_cat:
+                        category_type = "Flooring-Carpet"
+                        subcategory = "WOVEN"
+                    elif "ECONYL" in fallback_cat:
+                        category_type = "Flooring-Carpet"
+                        subcategory = "ECONYL RIPS"
+                    elif "GREY" in fallback_cat or "992" in fallback_cat:
+                        category_type = "AERMAT 9000/992 GREY"
+                    elif "BLUE" in fallback_cat or "8451" in fallback_cat:
+                        category_type = "AERMAT 9000/8451 BLUE"
             
-            if category:
-                # Get quantity, handle None or missing values
-                stock_level = product.get("current_stock_level")
+            # Add to appropriate category
+            if category_type:
+                # Update the carpet_item category
+                carpet_item.category = subcategory if subcategory else category_type
                 
-                if stock_level is None:
-                    quantity = 0
-                else:
-                    try:
-                        quantity = int(float(stock_level))
-                    except (ValueError, TypeError):
-                        quantity = 0
+                if category_type == "Flooring-Carpet" and subcategory:
+                    categories[category_type][subcategory].append(carpet_item)
+                elif category_type in ["AERMAT 9000/992 GREY", "AERMAT 9000/8451 BLUE"]:
+                    categories[category_type].append(carpet_item)
                 
-                # Create display string
-                if quantity > 0:
-                    quantity_display = str(quantity)
-                else:
-                    quantity_display = "Out of Stock"
-                
-                # Create detailed name with color info if available
-                display_name = product_name
-                if color and color not in product_name.upper():
-                    display_name = f"{product_name} ({color})"
-                
-                # Create carpet item
-                carpet_item = CarpetItem(
-                    id=product.get("id"),
-                    sku=product.get("sku", "N/A"),
-                    name=display_name,
-                    category=category,
-                    quantity=quantity,
-                    quantity_display=quantity_display,
-                    is_available=quantity > 0
-                )
-                
-                categories[category].append(carpet_item)
                 total_items += 1
         
+        # Build paint items list
+        paint_items = build_paint_items(paint_response.data, paint_unit_map, PAINT_PRODUCTS_SKUS)
+        
+        # Filter based on category parameter
+        if category == "carpet":
+            # Return only carpet categories
+            filtered_categories = {
+                "Flooring-Carpet": categories["Flooring-Carpet"],
+                "AERMAT 9000/992 GREY": categories["AERMAT 9000/992 GREY"],
+                "AERMAT 9000/8451 BLUE": categories["AERMAT 9000/8451 BLUE"]
+            }
+            return InventoryResponse(
+                success=True,
+                message=f"Successfully retrieved carpet inventory. Found {total_items} carpet item(s).",
+                categories=filtered_categories,
+                total_items=total_items,
+                paint_items=[]
+            )
+        elif category == "paint":
+            # Return only paint items
+            return InventoryResponse(
+                success=True,
+                message=f"Successfully retrieved paint inventory. Found {len(paint_items)} paint item(s).",
+                categories={},
+                total_items=len(paint_items),
+                paint_items=paint_items
+            )
+        
+        # Return all (default)
         return InventoryResponse(
             success=True,
-            message=f"Successfully retrieved inventory. Found {total_items} carpet type(s).",
+            message=f"Successfully retrieved inventory. Found {total_items} carpet type(s) and {len(paint_items)} paint item(s).",
             categories=categories,
-            total_items=total_items
+            total_items=total_items,
+            paint_items=paint_items
         )
         
     except Exception as e:
@@ -511,6 +631,71 @@ async def get_inventory():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching inventory: {str(e)}"
         )
+
+
+def build_paint_items(products_data: list, unit_map: dict, expected_skus: list) -> List[PaintItem]:
+    """
+    Build paint items list from database products, handling missing items.
+    
+    Args:
+        products_data: List of product dictionaries from database
+        unit_map: Dictionary mapping unit IDs to unit symbols
+        expected_skus: List of expected SKU strings
+    
+    Returns:
+        List of PaintItem objects
+    """
+    paint_items = []
+    found_skus = {p.get("sku") for p in products_data if p.get("sku")}
+    
+    # First add all found products
+    for product in products_data:
+        if product.get("sku") in expected_skus:
+            stock_level = product.get("current_stock_level")
+            current_stock = float(stock_level) if stock_level is not None else 0.0
+            
+            # Get unit symbol
+            unit_id = product.get("sales_unit_id") or product.get("base_unit_id")
+            unit_symbol = unit_map.get(unit_id, "pcs") if unit_id else "pcs"
+            
+            # Convert to display unit (if stored in ml, convert to L or KG)
+            display_stock = current_stock
+            display_unit = unit_symbol
+            
+            # Handle ml conversion for display
+            if unit_symbol == "ml" and current_stock > 0:
+                display_stock = current_stock / 1000  # Convert ml to L
+                # Try to determine if it's L or kg based on context
+                # For now, keep as L
+                display_unit = "L"
+            
+            paint_items.append(PaintItem(
+                id=product.get("id"),
+                sku=product.get("sku", ""),
+                name=product.get("name", ""),
+                current_stock=current_stock,
+                unit=unit_symbol,
+                stock_display=f"{display_stock} {display_unit}" if current_stock > 0 else "Out of Stock",
+                is_available=current_stock > 0
+            ))
+    
+    # Add missing items with "Item Pending Manual Entry"
+    for sku in expected_skus:
+        if sku not in found_skus:
+            # Determine unit based on SKU pattern
+            unit = "KG" if "KG" in sku else "L"
+            
+            paint_items.append(PaintItem(
+                id=None,
+                sku=sku,
+                name="Item Pending Manual Entry",
+                current_stock=0,
+                unit=unit,
+                stock_display="Item Pending Manual Entry",
+                is_available=False
+            ))
+    
+    return paint_items
 
 
 @app.get("/api/products/{product_id}", response_model=ProductResponse)
