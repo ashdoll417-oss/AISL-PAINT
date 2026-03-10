@@ -56,6 +56,26 @@ class StockUpdateRequest(BaseModel):
     operation: str  # 'set', 'add', 'subtract'
 
 
+class QuoteItemRequest(BaseModel):
+    """Request model for quote item."""
+    part_number: str
+    description: str
+    quantity: float
+    unit_cost: float
+
+
+class SaveQuoteRequest(BaseModel):
+    """Request model for saving a quote."""
+    quote_number: str
+    customer_name: str
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    items: List[QuoteItemRequest]
+    subtotal: float
+    vat_rate: float = 0.16
+    grand_total: float
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -270,6 +290,120 @@ async def stock(request: Request):
             "carpets": inventory["carpets"]
         }
     )
+
+
+@app.get("/quote")
+async def quote(request: Request):
+    """Quote Generator page for Aero Instrument Service Ltd."""
+    greeting = get_time_greeting()
+    
+    # Generate quote number
+    now = datetime.now()
+    quote_number = f"QTE-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
+    
+    # Get current date
+    current_date = now.strftime('%d/%m/%Y')
+    
+    return templates.TemplateResponse(
+        "quote.html",
+        {
+            "request": request,
+            "greeting": greeting,
+            "page_title": "Quote Generator",
+            "page_icon": "file-earmark-text",
+            "quote_number": quote_number,
+            "current_date": current_date
+        }
+    )
+
+
+@app.get("/api/inventory/search")
+async def search_inventory(q: str = ""):
+    """
+    Search inventory items from Supabase aviation_inventory table.
+    
+    Args:
+        q: Search query string
+    
+    Returns:
+        List of matching inventory items
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Search in part_number and description
+        response = supabase.table("aviation_inventory").select(
+            "part_number, description, current_stock, uom"
+        ).or_(
+            f"part_number.ilike.%{q}%,description.ilike.%{q}%"
+        ).limit(20).execute()
+        
+        return {
+            "success": True,
+            "items": response.data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "items": []
+        }
+
+
+@app.post("/api/quote/save")
+async def save_quote(request: SaveQuoteRequest):
+    """
+    Save quote to sales_quotes table in Supabase.
+    
+    Args:
+        request: SaveQuoteRequest with quote details and items
+    
+    Returns:
+        Success message with quote ID
+    """
+    supabase = get_supabase_service_client()
+    
+    try:
+        # Create quote record
+        quote_data = {
+            "quote_number": request.quote_number,
+            "customer_name": request.customer_name,
+            "customer_email": request.customer_email,
+            "customer_phone": request.customer_phone,
+            "subtotal": request.subtotal,
+            "vat_rate": request.vat_rate,
+            "grand_total": request.grand_total,
+            "status": "pending",
+            "created_at": datetime.now().isoformat()
+        }
+        
+        quote_response = supabase.table("sales_quotes").insert(quote_data).execute()
+        
+        if not quote_response.data:
+            raise Exception("Failed to create quote")
+        
+        quote_id = quote_response.data[0].get("id")
+        
+        # Insert quote items
+        for item in request.items:
+            item_data = {
+                "quote_id": quote_id,
+                "part_number": item.part_number,
+                "description": item.description,
+                "quantity": item.quantity,
+                "unit_cost": item.unit_cost,
+                "total": item.quantity * item.unit_cost
+            }
+            supabase.table("sales_quote_items").insert(item_data).execute()
+        
+        return {
+            "success": True,
+            "message": "Quote saved successfully",
+            "quote_id": quote_id,
+            "quote_number": request.quote_number
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving quote: {str(e)}")
 
 
 @app.get("/logout")

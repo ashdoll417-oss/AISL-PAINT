@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}Quote Generator - Aero Instrument Service Ltd{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-6 animate-fade-in">
+    <h1 class="text-2xl font-semibold text-primary flex items-center gap-3">
+        <i class="bi bi-file-earmark-text"></i> Quote Generator
+    </h1>
+    <nav class="mt-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-secondary">Dashboard</a> / <span class="text-secondary">Quote Generator</span>
+    </nav>
+</div>
+
+<!-- Quote Document -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden animate-fade-in" id="quoteDocument">
+    <!-- Company Header -->
+    <div class="bg-gradient-to-r from-primary to-dark px-8 py-6 text-white">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center gap-4">
+                <!-- Logo Placeholder -->
+                <div class="w-20 h-20 bg-white/20 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-airplane-engines text-4xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold">Aero Instrument Service Ltd</h1>
+                    <p class="text-white/80">Aviation Supplies & Services</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <h2 class="text-xl font-semibold">QUOTE</h2>
+                <p class="text-white/80">No: <span class="font-mono font-bold" id="quoteNumber">{{ quote_number }}</span></p>
+                <p class="text-white/80">Date: <span id="quoteDate">{{ current_date }}</span></p>
+            </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-white/20">
+            <p class="text-white/80 text-sm">
+                <i class="bi bi-geo-alt"></i> Wilson Airport, Nairobi, Kenya<br>
+                <i class="bi bi-telephone"></i> +254 700 000000 | info@aeroinstrument.co.ke
+            </p>
+        </div>
+    </div>
+
+    <!-- Customer Details -->
+    <div class="px-8 py-6 border-b">
+        <div class="grid grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Customer Name</label>
+                <input type="text" id="customerName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent" placeholder="Enter customer name">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Customer Email (Optional)</label>
+                <input type="email" id="customerEmail" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent" placeholder="customer@email.com">
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Add Section -->
+    <div class="px-8 py-4 bg-gray-50 border-b">
+        <div class="flex gap-4">
+            <div class="flex-1 relative">
+                <input type="text" id="searchInput" class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent" placeholder="Search items (e.g., 'Top-coat 470-10 White', 'Hardener 405-03')...">
+                <i class="bi bi-search absolute left-3 top-3 text-gray-400"></i>
+                <!-- Search Results Dropdown -->
+                <div id="searchResults" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                </div>
+            </div>
+            <button onclick="addSelectedItem()" class="px-6 py-2 bg-secondary hover:bg-blue-600 text-white rounded-lg font-medium transition-colors">
+                <i class="bi bi-plus-lg"></i> Add Item
+            </button>
+        </div>
+    </div>
+
+    <!-- Quote Table -->
+    <div class="px-8 py-4">
+        <table class="w-full" id="quoteTable">
+            <thead>
+                <tr class="border-b-2 border-gray-200">
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-16">#</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase w-32">QTY</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-40">UNIT COST (KES)</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-40">TOTAL (KES)</th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase w-20">Action</th>
+                </tr>
+            </thead>
+            <tbody id="quoteTableBody">
+                <!-- Quote items will be added here -->
+            </tbody>
+        </table>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="py-12 text-center text-gray-500">
+            <i class="bi bi-cart text-5xl mb-4"></i>
+            <p>No items added yet. Search and add items from inventory.</p>
+        </div>
+    </div>
+
+    <!-- Totals Section -->
+    <div class="px-8 py-6 bg-gray-50 border-t">
+        <div class="flex justify-end">
+            <div class="w-80">
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">Subtotal:</span>
+                    <span class="font-semibold" id="subtotal">KES 0.00</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-600">VAT (16%):</span>
+                    <span class="font-semibold" id="vatAmount">KES 0.00</span>
+                </div>
+                <div class="flex justify-between py-3 border-t-2 border-primary text-lg">
+                    <span class="font-bold text-primary">GRAND TOTAL:</span>
+                    <span class="font-bold text-primary" id="grandTotal">KES 0.00</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="px-8 py-6 border-t flex justify-between items-center">
+        <div class="text-sm text-gray-500">
+            <p><i class="bi bi-info-circle"></i> Quote valid for 30 days</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="printQuote()" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+                <i class="bi bi-printer"></i> Print to PDF
+            </button>
+            <button onclick="saveQuote()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                <i class="bi bi-check-lg"></i> Generate Quote
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease forwards;
+        opacity: 0;
+    }
+    
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #quoteDocument, #quoteDocument * {
+            visibility: visible;
+        }
+        #quoteDocument {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            box-shadow: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% raw %}
+<script>
+let quoteItems = [];
+let selectedItem = null;
+
+const VAT_RATE = 0.16;
+
+// Search inventory
+document.getElementById('searchInput').addEventListener('input', async function(e) {
+    const query = e.target.value.trim();
+    const resultsDiv = document.getElementById('searchResults');
+    
+    if (query.length < 2) {
+        resultsDiv.classList.add('hidden');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/inventory/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.success && data.items.length > 0) {
+            resultsDiv.innerHTML = data.items.map(item => `
+                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0" 
+                     onclick="selectItem('${item.part_number}', '${item.description.replace(/'/g, "\\'")}', '${item.uom}')">
+                    <div class="font-medium text-gray-800">${item.description}</div>
+                    <div class="text-sm text-gray-500">
+                        <span class="font-mono">${item.part_number}</span> | Stock: ${item.current_stock} ${item.uom}
+                    </div>
+                </div>
+            `).join('');
+            resultsDiv.classList.remove('hidden');
+        } else {
+            resultsDiv.innerHTML = '<div class="px-4 py-3 text-gray-500">No items found</div>';
+            resultsDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+    }
+});
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#searchInput') && !e.target.closest('#searchResults')) {
+        document.getElementById('searchResults').classList.add('hidden');
+    }
+});
+
+function selectItem(partNumber, description, uom) {
+    selectedItem = { part_number: partNumber, description: description, uom: uom };
+    document.getElementById('searchInput').value = `${partNumber} - ${description}`;
+    document.getElementById('searchResults').classList.add('hidden');
+}
+
+function addSelectedItem() {
+    if (!selectedItem) {
+        alert('Please search and select an item first');
+        return;
+    }
+    
+    // Check if item already exists
+    const existingIndex = quoteItems.findIndex(item => item.part_number === selectedItem.part_number);
+    if (existingIndex >= 0) {
+        quoteItems[existingIndex].quantity += 1;
+    } else {
+        quoteItems.push({
+            part_number: selectedItem.part_number,
+            description: selectedItem.description,
+            quantity: 1,
+            unit_cost: 0
+        });
+    }
+    
+    selectedItem = null;
+    document.getElementById('searchInput').value = '';
+    renderQuoteTable();
+}
+
+function removeItem(index) {
+    quoteItems.splice(index, 1);
+    renderQuoteTable();
+}
+
+function updateQuantity(index, value) {
+    const qty = parseFloat(value) || 0;
+    quoteItems[index].quantity = qty > 0 ? qty : 1;
+    renderQuoteTable();
+}
+
+function updateUnitCost(index, value) {
+    const cost = parseFloat(value) || 0;
+    quoteItems[index].unit_cost = cost >= 0 ? cost : 0;
+    renderQuoteTable();
+}
+
+function renderQuoteTable() {
+    const tbody = document.getElementById('quoteTableBody');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (quoteItems.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        calculateTotals();
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    tbody.innerHTML = quoteItems.map((item, index) => `
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-500">${index + 1}</td>
+            <td class="px-4 py-3">
+                <div class="font-medium text-gray-800">${item.description}</div>
+                <div class="text-xs text-gray-500 font-mono">${item.part_number}</div>
+            </td>
+            <td class="px-4 py-3">
+                <input type="number" min="1" value="${item.quantity}" 
+                       onchange="updateQuantity(${index}, this.value)"
+                       class="w-full px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-secondary focus:border-transparent">
+            </td>
+            <td class="px-4 py-3">
+                <input type="number" min="0" step="0.01" value="${item.unit_cost}" 
+                       onchange="updateUnitCost(${index}, this.value)"
+                       class="w-full px-2 py-1 border border-gray-300 rounded text-right focus:ring-2 focus:ring-secondary focus:border-transparent"
+                       placeholder="0.00">
+            </td>
+            <td class="px-4 py-3 text-right font-semibold">
+                KES ${(item.quantity * item.unit_cost).toFixed(2)}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="removeItem(${index})" class="text-red-500 hover:text-red-700">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+    
+    calculateTotals();
+}
+
+function calculateTotals() {
+    let subtotal = 0;
+    
+    quoteItems.forEach(item => {
+        subtotal += item.quantity * item.unit_cost;
+    });
+    
+    const vatAmount = subtotal * VAT_RATE;
+    const grandTotal = subtotal * (1 + VAT_RATE);
+    
+    document.getElementById('subtotal').textContent = `KES ${subtotal.toFixed(2)}`;
+    document.getElementById('vatAmount').textContent = `KES ${vatAmount.toFixed(2)}`;
+    document.getElementById('grandTotal').textContent = `KES ${grandTotal.toFixed(2)}`;
+}
+
+async function saveQuote() {
+    if (quoteItems.length === 0) {
+        alert('Please add at least one item to the quote');
+        return;
+    }
+    
+    const customerName = document.getElementById('customerName').value.trim();
+    if (!customerName) {
+        alert('Please enter customer name');
+        return;
+    }
+    
+    const subtotal = quoteItems.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
+    const grandTotal = subtotal * (1 + VAT_RATE);
+    
+    const quoteData = {
+        quote_number: document.getElementById('quoteNumber').textContent,
+        customer_name: customerName,
+        customer_email: document.getElementById('customerEmail').value.trim() || null,
+        items: quoteItems,
+        subtotal: subtotal,
+        vat_rate: VAT_RATE,
+        grand_total: grandTotal
+    };
+    
+    try {
+        const response = await fetch('/api/quote/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(quoteData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Quote saved successfully!\nQuote Number: ${data.quote_number}`);
+            // Reset for new quote
+            quoteItems = [];
+            renderQuoteTable();
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerEmail').value = '';
+            // Generate new quote number
+            const now = new Date();
+            document.getElementById('quoteNumber').textContent = `QTE-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+            document.getElementById('quoteDate').textContent = now.toLocaleDateString('en-GB');
+        } else {
+            alert('Error saving quote: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error saving quote: ' + error.message);
+    }
+}
+
+function printQuote() {
+    if (quoteItems.length === 0) {
+        alert('Please add at least one item to the quote');
+        return;
+    }
+    window.print();
+}
+</script>
+{% endraw %}
+{% endblock %}
+
