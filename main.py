@@ -61,6 +61,7 @@ class InventoryItem(BaseModel):
     is_available: bool = Field(default=False, description="Whether item is in stock")
     stock_unit: Optional[str] = Field(default=None, description="Stock unit (KG/L/Linear Meters)")
     notes: Optional[str] = Field(default=None, description="Additional notes for paint kits")
+    display_name: Optional[str] = Field(default=None, description="Formatted display name for Carpet items: [COLOR/TYPE] - [DESCRIPTION]")
 
 
 class InventoryResponse(BaseModel):
@@ -129,6 +130,75 @@ def get_stock_unit(description: str, current_stock: float, uom: str) -> str:
     return uom or ""
 
 
+def get_carpet_display_name(description: str, category: str) -> Optional[str]:
+    """
+    Generate display_name for Carpet category items.
+    
+    Formats as: [COLOR/TYPE] - [DESCRIPTION]
+    Examples:
+    - 'BLUE - AERMAT 9000/8451'
+    - 'WOVEN - CARPET'
+    - 'GREY - AERMAT 9000/992'
+    - 'ECONYL RIPS - CARPET'
+    
+    Args:
+        description: Product description
+        category: Product category
+    
+    Returns:
+        Formatted display name or None if not a carpet item
+    """
+    if not description:
+        return None
+    
+    # Check if item belongs to Carpet category
+    category_lower = category.lower() if category else ""
+    description_upper = description.upper()
+    
+    is_carpet_category = category_lower == "carpet"
+    is_aermat_or_carpet = 'AERMAT' in description_upper or 'CARPET' in description_upper
+    
+    if not (is_carpet_category or is_aermat_or_carpet):
+        return None
+    
+    # Determine the color/type prefix
+    color_type = ""
+    
+    # Check for AERMAT colors
+    if 'AERMAT' in description_upper:
+        if 'BLUE' in description_upper or '8451' in description_upper:
+            color_type = "BLUE"
+        elif 'GREY' in description_upper or '992' in description_upper:
+            color_type = "GREY"
+        else:
+            # Default to extracting from description
+            if 'BLUE' in description_upper:
+                color_type = "BLUE"
+            elif 'GREY' in description_upper:
+                color_type = "GREY"
+    
+    # Check for CARPET types
+    if 'CARPET' in description_upper:
+        if 'WOVEN' in description_upper:
+            color_type = "WOVEN"
+        elif 'ECONYL' in description_upper or 'RIPS' in description_upper:
+            color_type = "ECONYL RIPS"
+        else:
+            # Default to extracting from description
+            if 'WOVEN' in description_upper:
+                color_type = "WOVEN"
+            elif 'ECONYL' in description_upper:
+                color_type = "ECONYL RIPS"
+            elif 'RIPS' in description_upper:
+                color_type = "ECONYL RIPS"
+    
+    # If we found a color/type, format the display name
+    if color_type:
+        return f"{color_type} - {description}"
+    
+    return None
+
+
 def build_inventory_items(rows: list) -> List[InventoryItem]:
     """
     Build inventory items from database rows with enhanced display fields.
@@ -157,6 +227,10 @@ def build_inventory_items(rows: list) -> List[InventoryItem]:
         if is_paint_kit(description, uom):
             notes = "NOTE: This is a paint kit. The 1:1:1 ratio logic applies - for every 1KG of paint, 1KG of hardener and 1KG of thinner are required for proper mixing."
         
+        # Get display_name for Carpet items
+        category = row.get("category", "")
+        display_name = get_carpet_display_name(description, category)
+        
         # Create inventory item with all columns from aviation_inventory
         item = InventoryItem(
             part_number=row.get("part_number", ""),
@@ -169,12 +243,13 @@ def build_inventory_items(rows: list) -> List[InventoryItem]:
             current_stock=current_stock,
             batch_no=row.get("batch_no"),
             dom=str(row.get("dom")) if row.get("dom") else None,
-            category=row.get("category"),
+            category=category,
             # Custom fields
             stock_display=stock_display,
             is_available=current_stock > 0,
             stock_unit=stock_unit,
-            notes=notes
+            notes=notes,
+            display_name=display_name
         )
         items.append(item)
     
