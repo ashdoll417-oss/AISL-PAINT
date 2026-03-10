@@ -10,9 +10,10 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any
-from datetime import datetime
+import pytz
 
 from config import settings, get_supabase_client
 
@@ -281,13 +282,14 @@ async def root(request: Request):
     """
     Root endpoint - returns HTML dashboard with time-based greeting.
     
-    Time-based greeting:
+    Time-based greeting (Nairobi timezone):
     - 05:00-11:59: 'Good Morning, AISL Aviation Team'
     - 12:00-17:59: 'Good Afternoon'
     - Otherwise (18:00-04:59): 'Good Evening'
     """
-    now = datetime.now()
-    current_hour = now.hour
+    # Use Nairobi timezone for accurate greeting
+    nairobi_tz = pytz.timezone('Africa/Nairobi')
+    current_hour = datetime.now(nairobi_tz).hour
     
     # 05:00-11:59 = Good Morning
     # 12:00-17:59 = Good Afternoon
