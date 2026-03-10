@@ -3,42 +3,64 @@
 {% block title %}Dashboard - Aviation ERP{% endblock %}
 
 {% block content %}
-<div class="welcome-card animate-fade-in">
-    <div class="welcome-icon">
+<!-- Welcome Card -->
+<div class="bg-white rounded-2xl shadow-lg p-12 text-center mb-8 animate-fade-in">
+    <div class="text-6xl text-secondary mb-4">
         <i class="bi bi-airplane-engines"></i>
     </div>
-    <h2>Welcome!</h2>
-    <p>Please click on the left panel where you want to start.</p>
+    <h2 class="text-2xl font-semibold text-primary mb-2">Welcome!</h2>
+    <p class="text-gray-500 text-lg">Please click on the left panel where you want to start.</p>
 </div>
 
-<!-- Quick Stats (Optional - can be shown below welcome message) -->
-<div class="stats-grid" style="margin-top: 30px;">
-    <div class="stat-card animate-fade-in animate-delay-1">
-        <div class="icon blue">
+<!-- Quick Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Total Sales -->
+    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in" style="animation-delay: 0.1s;">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-secondary text-xl mb-4">
             <i class="bi bi-cart3"></i>
         </div>
-        <h3>125</h3>
-        <p>Total Sales Today</p>
+        <h3 class="text-3xl font-bold text-primary">125</h3>
+        <p class="text-gray-500 text-sm mt-1">Total Sales Today</p>
     </div>
-    <div class="stat-card animate-fade-in animate-delay-2">
-        <div class="icon green">
+    
+    <!-- Completed Orders -->
+    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in" style="animation-delay: 0.2s;">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center text-green-600 text-xl mb-4">
             <i class="bi bi-check2-circle"></i>
         </div>
-        <h3>89</h3>
-        <p>Completed Orders</p>
+        <h3 class="text-3xl font-bold text-primary">89</h3>
+        <p class="text-gray-500 text-sm mt-1">Completed Orders</p>
     </div>
-    <div class="stat-card animate-fade-in animate-delay-3">
-        <div class="icon orange">
+    
+    <!-- Pending Purchases -->
+    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in" style="animation-delay: 0.3s;">
+        <div class="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-500 text-xl mb-4">
             <i class="bi bi-basket"></i>
         </div>
-        <h3>34</h3>
-        <p>Pending Purchases</p>
+        <h3 class="text-3xl font-bold text-primary">34</h3>
+        <p class="text-gray-500 text-sm mt-1">Pending Purchases</p>
     </div>
-    <div class="stat-card animate-fade-in animate-delay-4">
-        <div class="icon red">
+    
+    <!-- Low Stock Items -->
+    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in" style="animation-delay: 0.4s;">
+        <div class="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center text-red-500 text-xl mb-4">
             <i class="bi bi-box-seam"></i>
         </div>
-        <h3>12</h3>
-        <p>Low Stock Items</p>
+        <h3 class="text-3xl font-bold text-primary">12</h3>
+        <p class="text-gray-500 text-sm mt-1">Low Stock Items</p>
     </div>
+</div>
+
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease forwards;
+        opacity: 0;
+    }
+</style>
 {% endblock %}
+
