@@ -562,6 +562,7 @@ async def add_item(request: Request):
     category = form_data.get("category", "").strip()
     batch_no = form_data.get("batch_no", "").strip()
     expiry_date = form_data.get("expiry_date", "").strip()
+    barcode_number = form_data.get("barcode_number", "").strip()
     
     if not part_number or not description:
         # Redirect back to stock with error (could add error handling)
@@ -595,6 +596,10 @@ async def add_item(request: Request):
             except ValueError:
                 # If already in correct format or invalid, just store as-is
                 new_item["expiry_date"] = expiry_date
+        
+        # Add barcode number if provided
+        if barcode_number:
+            new_item["barcode_number"] = barcode_number
         
         supabase.table("aviation_inventory").insert(new_item).execute()
         
@@ -659,6 +664,123 @@ async def quote_page(request: Request):
         "current_date": current_date,
         "quote_number": quote_number
     })
+
+
+# =============================================================================
+# ISSUE ITEM ROUTES (Barcode Scanning)
+# =============================================================================
+
+@app.get("/issue-item")
+async def issue_item_page(request: Request):
+    """
+    Issue Item page - barcode scanner interface for staff to issue items.
+    """
+    return templates.TemplateResponse("issue_item.html", {
+        "request": request,
+        "greeting": get_greeting()
+    })
+
+
+@app.get("/api/product/search")
+async def search_product(q: str = Query(..., description="Search query (barcode or part number)")):
+    """
+    Search for a product by barcode number or part number.
+    Used by the barcode scanner interface.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Search by barcode_number OR part_number
+        response = supabase.table("aviation_inventory").select("*").or_(
+            f"barcode_number.eq.{q},part_number.eq.{q}"
+        ).execute()
+        
+        if response.data and len(response.data) > 0:
+            product = response.data[0]
+            return {
+                "success": True,
+                "product": {
+                    "part_number": product.get("part_number"),
+                    "description": product.get("description"),
+                    "category": product.get("category"),
+                    "current_stock": float(product.get("current_stock", 0)) if product.get("current_stock") else 0,
+                    "uom": product.get("uom", "units"),
+                    "barcode_number": product.get("barcode_number")
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Product not found"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/product/issue")
+async def issue_product(request: Request):
+    """
+    Issue/Subtract stock from a product.
+    Used by the barcode scanner interface.
+    """
+    from fastapi.responses import JSONResponse
+    
+    try:
+        body = await request.json()
+        part_number = body.get("part_number", "").strip()
+        quantity = float(body.get("quantity", 0))
+        
+        if not part_number:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Part number is required"}
+            )
+        
+        if quantity <= 0:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Quantity must be greater than 0"}
+            )
+        
+        supabase = get_supabase_client()
+        
+        # Get current stock
+        response = supabase.table("aviation_inventory").select("current_stock").eq("part_number", part_number).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Product not found"}
+            )
+        
+        current_stock = float(response.data[0].get("current_stock", 0)) if response.data[0].get("current_stock") else 0
+        new_stock = current_stock - quantity
+        
+        # Ensure stock doesn't go negative
+        if new_stock < 0:
+            new_stock = 0
+        
+        # Update the stock
+        supabase.table("aviation_inventory").update({
+            "current_stock": new_stock
+        }).eq("part_number", part_number).execute()
+        
+        return {
+            "success": True,
+            "message": f"Successfully issued {quantity} units",
+            "new_stock": new_stock,
+            "previous_stock": current_stock,
+            "issued_quantity": quantity
+        }
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 # =============================================================================

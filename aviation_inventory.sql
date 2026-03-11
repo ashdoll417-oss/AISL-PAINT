@@ -13,13 +13,15 @@ CREATE TABLE IF NOT EXISTS aviation_inventory (
     batch_no TEXT,
     dom DATE,
     expiry_date DATE,
-    category TEXT NOT NULL
+    category TEXT NOT NULL,
+    barcode_number TEXT
 );
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_aviation_inventory_category ON aviation_inventory(category);
 CREATE INDEX IF NOT EXISTS idx_aviation_inventory_uom ON aviation_inventory(uom);
 CREATE INDEX IF NOT EXISTS idx_aviation_inventory_current_stock ON aviation_inventory(current_stock);
+CREATE INDEX IF NOT EXISTS idx_aviation_inventory_barcode ON aviation_inventory(barcode_number);
 
 -- Insert sample data (optional - for testing)
 -- INSERT INTO aviation_inventory (part_number, description, opening_stock, uom, cont, sold_stock, in_house, current_stock, batch_no, dom, category)
