@@ -26,7 +26,7 @@
                    placeholder="Enter part number">
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Barcode Number</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Barcode ID</label>
             <input type="text" name="barcode_number" id="barcodeInput"
                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
                    placeholder="Scan or enter barcode">
@@ -373,6 +373,34 @@
             setTimeout(function() {
                 barcodeInput.focus();
             }, 100);
+            
+            // Smart Check: Check if barcode already exists when user leaves the field
+            barcodeInput.addEventListener('blur', async function() {
+                const barcodeValue = this.value.trim();
+                if (!barcodeValue) return; // Skip if empty
+                
+                try {
+                    const response = await fetch(`/api/barcode/check?barcode=${encodeURIComponent(barcodeValue)}`);
+                    const data = await response.json();
+                    
+                    if (data.exists) {
+                        const message = `This barcode is already linked to Part ${data.part_number}. Would you like to update stock instead?`;
+                        const userConfirmed = confirm(message);
+                        
+                        if (userConfirmed) {
+                            // Redirect to stock page with the part number to open update modal
+                            // Store the part number in sessionStorage for the modal
+                            sessionStorage.setItem('updatePartNumber', data.part_number);
+                            window.location.href = '/stock';
+                        }
+                        
+                        // Clear the barcode field after showing alert
+                        this.value = '';
+                    }
+                } catch (error) {
+                    console.error('Error checking barcode:', error);
+                }
+            });
         }
     });
 

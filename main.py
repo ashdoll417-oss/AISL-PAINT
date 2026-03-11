@@ -720,6 +720,36 @@ async def search_product(q: str = Query(..., description="Search query (barcode 
         }
 
 
+@app.get("/api/barcode/check")
+async def check_barcode_exists(barcode: str = Query(..., description="Barcode to check")):
+    """
+    Check if a barcode already exists in the database.
+    Used for smart validation when adding new products.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Search by barcode_number only
+        response = supabase.table("aviation_inventory").select("part_number, description").eq("barcode_number", barcode).execute()
+        
+        if response.data and len(response.data) > 0:
+            product = response.data[0]
+            return {
+                "exists": True,
+                "part_number": product.get("part_number"),
+                "description": product.get("description")
+            }
+        else:
+            return {
+                "exists": False
+            }
+    except Exception as e:
+        return {
+            "exists": False,
+            "error": str(e)
+        }
+
+
 @app.post("/api/product/issue")
 async def issue_product(request: Request):
     """
