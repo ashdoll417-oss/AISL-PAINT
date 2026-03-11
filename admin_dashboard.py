@@ -137,19 +137,33 @@ def get_inventory_data() -> Dict[str, List[Dict[str, Any]]]:
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table("aviation_inventory").select("*").execute()
+        # Fetch inventory with supplier info
+        response = supabase.table("aviation_inventory").select(
+            "*, suppliers(id, supplier_name)"
+        ).execute()
         
         if not response.data:
-            return {"paints": [], "carpets": []}
+            return {"paints": [], "carpets": [], "low_stock": []}
         
         paints = []
         carpets = []
+        low_stock = []
         
         for item in response.data:
             description = item.get("description", "").upper()
             category = item.get("category", "").lower()
             current_stock = float(item.get("current_stock", 0)) if item.get("current_stock") else 0
+            min_threshold = float(item.get("min_threshold", 10)) if item.get("min_threshold") else 10
             uom = item.get("uom", "")
+            
+            # Get supplier info
+            suppliers = item.get("suppliers", [])
+            preferred_supplier_id = item.get("preferred_supplier_id")
+            preferred_supplier_name = suppliers[0].get("supplier_name") if suppliers else None if isinstance(suppliers, list) and len(suppliers) > 0 else None
+            
+            # If suppliers is a dict (single object), get the name directly
+            if isinstance(suppliers, dict):
+                preferred_supplier_name = suppliers.get("supplier_name")
             
             # Determine stock unit
             stock_unit = uom
@@ -159,31 +173,43 @@ def get_inventory_data() -> Dict[str, List[Dict[str, Any]]]:
             # Check if it's a carpet/flooring item
             is_carpet = category == "carpet" or 'AERMAT' in description or 'CARPET' in description
             
+            # Check if low stock (below min_threshold)
+            is_low_stock = current_stock <= min_threshold
+            
             item_data = {
                 "part_number": item.get("part_number", ""),
                 "description": item.get("description", ""),
                 "current_stock": current_stock,
+                "min_threshold": min_threshold,
                 "uom": uom,
                 "stock_unit": stock_unit,
                 "stock_display": f"{current_stock} {stock_unit}" if current_stock > 0 else "Out of Stock",
                 "is_available": current_stock > 0,
+                "is_low_stock": is_low_stock,
+                "preferred_supplier_id": preferred_supplier_id,
+                "preferred_supplier_name": preferred_supplier_name,
                 # For carpets, add color/type info
                 "color_type": get_carpet_color_type(item.get("description", ""))
             }
             
             if is_carpet:
                 carpets.append(item_data)
+                if is_low_stock:
+                    low_stock.append(item_data)
             else:
                 paints.append(item_data)
+                if is_low_stock:
+                    low_stock.append(item_data)
         
         return {
             "paints": paints,
-            "carpets": carpets
+            "carpets": carpets,
+            "low_stock": low_stock
         }
         
     except Exception as e:
         print(f"Error fetching inventory: {e}")
-        return {"paints": [], "carpets": []}
+        return {"paints": [], "carpets": [], "low_stock": []}
 
 
 def get_carpet_color_type(description: str) -> str:
@@ -473,6 +499,15 @@ async def stock(request: Request):
     greeting = get_time_greeting()
     inventory = get_inventory_data()
     
+    # Get suppliers list for preferred supplier dropdown
+    supabase = get_supabase_client()
+    try:
+        suppliers_response = supabase.table("suppliers").select("id, supplier_name").execute()
+        suppliers = suppliers_response.data if suppliers_response.data else []
+    except Exception as e:
+        print(f"Error fetching suppliers: {e}")
+        suppliers = []
+    
     return templates.TemplateResponse(
         "stock.html",
         {
@@ -481,9 +516,52 @@ async def stock(request: Request):
             "page_title": "Stock Management",
             "page_icon": "box-seam",
             "paints": inventory["paints"],
-            "carpets": inventory["carpets"]
+            "carpets": inventory["carpets"],
+            "low_stock": inventory["low_stock"],
+            "suppliers": suppliers
         }
     )
+
+
+@app.get("/api/suppliers")
+async def get_suppliers():
+    """Get all suppliers for dropdown selection."""
+    supabase = get_supabase_client()
+    
+    try:
+        response = supabase.table("suppliers").select("id, supplier_name").order("supplier_name").execute()
+        
+        return {
+            "success": True,
+            "suppliers": response.data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "suppliers": []
+        }
+
+
+@app.post("/api/inventory/update-supplier")
+async def update_preferred_supplier(part_number: str, supplier_id: str):
+    """Update preferred supplier for an inventory item."""
+    supabase = get_supabase_service_client()
+    
+    try:
+        update_response = supabase.table("aviation_inventory").update({
+            "preferred_supplier_id": supplier_id
+        }).eq("part_number", part_number).execute()
+        
+        if not update_response.data:
+            raise Exception("Failed to update preferred supplier")
+        
+        return {
+            "success": True,
+            "message": "Preferred supplier updated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating supplier: {str(e)}")
 
 
 @app.get("/quote")

@@ -179,7 +179,7 @@
 let poItems = [];
 let selectedItem = null;
 
-// Load suppliers on page load
+// Load suppliers on page load and handle pre-filled data
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         const response = await fetch('/api/suppliers');
@@ -191,13 +191,92 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const option = document.createElement('option');
                 option.value = supplier.supplier_name;
                 option.textContent = supplier.supplier_name;
+                option.dataset.supplierId = supplier.id; // Store the ID for reference
                 supplierSelect.appendChild(option);
             });
+            
+            // Check for pre-fill parameters from low stock alert
+            const urlParams = new URLSearchParams(window.location.search);
+            const prefillPartNumber = urlParams.get('part_number');
+            const prefillDescription = urlParams.get('description');
+            const prefillSupplierId = urlParams.get('supplier_id');
+            
+            if (prefillPartNumber) {
+                // Auto-add the pre-filled item
+                await autoAddPrefilledItem(prefillPartNumber, prefillDescription);
+            }
+            
+            // Auto-select supplier if supplier_id is provided
+            if (prefillSupplierId) {
+                const options = supplierSelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].dataset.supplierId === prefillSupplierId) {
+                        supplierSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
         }
     } catch (error) {
         console.error('Error loading suppliers:', error);
     }
 });
+
+// Auto-add pre-filled item from low stock alert
+async function autoAddPrefilledItem(partNumber, description) {
+    try {
+        // Search for the item in inventory
+        const response = await fetch(`/api/inventory/search?q=${encodeURIComponent(partNumber)}`);
+        const data = await response.json();
+        
+        if (data.success && data.items && data.items.length > 0) {
+            // Find exact match
+            const item = data.items.find(i => i.part_number === partNumber);
+            
+            if (item) {
+                // Add item to PO
+                poItems.push({
+                    part_number: item.part_number,
+                    description: item.description,
+                    quantity: 1, // Default quantity, admin can adjust
+                    uom: item.uom,
+                    unit_price_usd: 0
+                });
+                
+                renderPOTable();
+                
+                // Show notification
+                showNotification(`Added ${item.part_number} from low stock alert. Please adjust quantity and select supplier.`);
+            }
+        } else {
+            // Item not found in inventory, add with provided description
+            poItems.push({
+                part_number: partNumber,
+                description: description || 'No description',
+                quantity: 1,
+                uom: 'units',
+                unit_price_usd: 0
+            });
+            
+            renderPOTable();
+            showNotification(`Added ${partNumber}. Please adjust quantity and select supplier.`);
+        }
+    } catch (error) {
+        console.error('Error auto-adding item:', error);
+    }
+}
+
+// Show notification for pre-filled items
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+    notification.innerHTML = `<i class="bi bi-info-circle"></i> ${message}`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
 
 // Search inventory
 document.getElementById('searchInput').addEventListener('input', async function(e) {

@@ -721,16 +721,26 @@ async def sales_page(request: Request):
 
 @app.get("/purchase-orders")
 async def purchase_orders_page(request: Request):
-    """Purchase Orders page."""
+    """
+    Purchase Orders page.
+    Supports pre-filling from query parameters (part_number, description)
+    for quick PO generation from low stock alerts.
+    """
     now = datetime.now()
     current_date = now.strftime("%Y-%m-%d")
     po_number = f"PO-{now.strftime('%y')}-{now.strftime('%m%d')}-{now.strftime('%H%M%S')}"
+    
+    # Get pre-fill parameters from query string
+    prefill_part_number = request.query_params.get("part_number", "")
+    prefill_description = request.query_params.get("description", "")
     
     return templates.TemplateResponse("purchase_order.html", {
         "request": request,
         "greeting": get_greeting(),
         "current_date": current_date,
-        "po_number": po_number
+        "po_number": po_number,
+        "prefill_part_number": prefill_part_number,
+        "prefill_description": prefill_description
     })
 
 

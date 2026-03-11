@@ -1,31 +1,27 @@
-# TODO: Dynamic Low Stock Alert Implementation
+# Quick Order Feature Implementation
 
-## Step 1: Database Schema Update
-- [x] Update aviation_inventory.sql - Add min_threshold column
+## Task: Update Admin Dashboard with 'Quick Order' Feature
 
-## Step 2: Backend Updates (main.py)
-- [x] Update get_low_stock_items() function to check current_stock <= min_threshold
-- [x] Add GET /api/low-stock/count endpoint for real-time polling
-- [x] Add GET /api/low-stock/details endpoint for modal data
-- [x] Update add_item endpoint to handle min_threshold field
+### Steps:
 
-## Step 3: Dashboard UI (dashboard.html)
-- [x] Add Notifications section at top
-- [x] Create red flashing alert card
-- [x] Add clickable modal showing part numbers and quantities
-- [x] Add JavaScript for polling every 10 seconds
+1. [x] **Database**: Add `preferred_supplier_id` column to `aviation_inventory` table
+2. [x] **Backend**: Update inventory data to fetch supplier info and add supplier API
+3. [x] **Stock Page**: Add Low Stock Alert section with animate-pulse and "Generate PO" buttons
+4. [x] **Stock Page**: Add preferred supplier dropdown for each item
+5. [x] **Purchase Order Page**: Auto-select supplier when redirecting from low stock alert
+6. [x] **Backend**: Add API endpoint to update preferred supplier for items
 
-## Step 4: Stock Page (stock.html)
-- [x] Add min_threshold field to manual entry form
+### Status: COMPLETED ✅
 
-## Step 5: Real-time Update (issue_stock.html)
-- [x] Update issue_stock.html to trigger notification on successful issue
-
-## Implementation Complete!
-All features have been implemented:
-- Dynamic low stock alerts based on per-item min_threshold
-- Flashing red alert on dashboard when items are low
-- Clickable modal showing detailed list of low stock items
-- Real-time polling every 10 seconds
-- Immediate update after staff issues items
+### Summary of Changes:
+- Added `preferred_supplier_id` column to `aviation_inventory` table in `aviation_inventory.sql`
+- Updated `get_inventory_data()` in `admin_dashboard.py` to include supplier info and low_stock items
+- Added `/api/suppliers` endpoint to get all suppliers
+- Added `/api/inventory/update-supplier` endpoint to update preferred supplier
+- Updated `/stock` route to pass suppliers and low_stock data to template
+- Updated `templates/stock.html` with:
+  - Low Stock Alert section with `animate-pulse` class (flashing red box)
+  - "🛒 Generate PO" button for each low-stock item
+  - Preferred supplier dropdown to select supplier from
+- Updated `templates/purchase_order.html` to auto-select supplier when redirecting with `supplier_id` parameter
 

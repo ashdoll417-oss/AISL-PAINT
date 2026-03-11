@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS aviation_inventory (
     dom DATE,
     expiry_date DATE,
     category TEXT NOT NULL,
-    barcode_number TEXT
+    barcode_number TEXT,
+    preferred_supplier_id UUID REFERENCES suppliers(id)
 );
 
 -- Create indexes for common queries
