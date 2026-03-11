@@ -3,7 +3,7 @@ FastAPI Admin Dashboard Application
 Uses Jinja2 templates for rendering the admin interface
 """
 
-from fastapi import FastAPI, Request, templating, HTTPException
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
