@@ -379,7 +379,7 @@ async def reports(request: Request):
     """Reports page."""
     greeting = get_time_greeting()
     return templates.TemplateResponse(
-        "page.html",
+        "reports.html",
         {
             "request": request,
             "greeting": greeting,
@@ -387,6 +387,107 @@ async def reports(request: Request):
             "page_icon": "graph-up"
         }
     )
+
+
+@app.get("/usage-reports")
+async def usage_reports(request: Request):
+    """Monthly Usage Reports page - shows stock issues from last 30 days."""
+    greeting = get_time_greeting()
+    supabase = get_supabase_client()
+    
+    try:
+        # Calculate date 30 days ago
+        from datetime import timedelta
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+        
+        # Query stock_logs for ISSUEs in the last 30 days
+        logs_response = supabase.table("stock_logs").select(
+            "part_number, quantity, created_at"
+        ).gte("created_at", thirty_days_ago).eq("transaction_type", "ISSUE").execute()
+        
+        # Group by part_number and sum quantities
+        usage_dict = {}
+        for log in logs_response.data:
+            part_number = log.get("part_number")
+            quantity = float(log.get("quantity", 0))
+            if part_number in usage_dict:
+                usage_dict[part_number] += quantity
+            else:
+                usage_dict[part_number] = quantity
+        
+        # Get inventory details for each part number
+        inventory_response = supabase.table("aviation_inventory").select(
+            "part_number, description, current_stock, unit_price_usd"
+        ).execute()
+        
+        inventory_dict = {item.get("part_number"): item for item in inventory_response.data}
+        
+        # Build usage data with inventory details
+        usage_data = []
+        total_issued = 0
+        total_cost = 0.0
+        
+        for part_number, total_qty in usage_dict.items():
+            inventory_item = inventory_dict.get(part_number, {})
+            description = inventory_item.get("description", "Unknown")
+            current_stock = float(inventory_item.get("current_stock", 0))
+            unit_price = float(inventory_item.get("unit_price_usd", 0) or 0)
+            cost_analysis = total_qty * unit_price
+            
+            usage_data.append({
+                "part_number": part_number,
+                "description": description,
+                "total_issued": total_qty,
+                "current_stock": current_stock,
+                "unit_price_usd": unit_price,
+                "cost_analysis": round(cost_analysis, 2)
+            })
+            
+            total_issued += total_qty
+            total_cost += cost_analysis
+        
+        # Sort by total_issued descending
+        usage_data.sort(key=lambda x: x["total_issued"], reverse=True)
+        
+        # Get top 5 for chart
+        top_5_items = usage_data[:5]
+        
+        # Get unique items count
+        unique_items = len(usage_data)
+        
+        return templates.TemplateResponse(
+            "usage_reports.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Usage Reports",
+                "page_icon": "bar-chart",
+                "usage_data": usage_data,
+                "top_5_items": top_5_items,
+                "total_issued": round(total_issued, 2),
+                "unique_items": unique_items,
+                "total_cost": round(total_cost, 2),
+                "usage_data_json": usage_data
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error fetching usage reports: {e}")
+        return templates.TemplateResponse(
+            "usage_reports.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Usage Reports",
+                "page_icon": "bar-chart",
+                "usage_data": [],
+                "top_5_items": [],
+                "total_issued": 0,
+                "unique_items": 0,
+                "total_cost": 0,
+                "usage_data_json": []
+            }
+        )
 
 
 # =============================================================================
