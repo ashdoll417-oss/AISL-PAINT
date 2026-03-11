@@ -490,6 +490,100 @@ async def usage_reports(request: Request):
         )
 
 
+@app.get("/usage-report")
+async def usage_report(request: Request):
+    """Usage Report page - shows stock issues from last 30 days."""
+    greeting = get_time_greeting()
+    supabase = get_supabase_client()
+    
+    try:
+        # Calculate date 30 days ago
+        from datetime import timedelta
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+        
+        # Query stock_logs for ISSUEs in the last 30 days
+        logs_response = supabase.table("stock_logs").select(
+            "part_number, quantity, created_at"
+        ).gte("created_at", thirty_days_ago).eq("transaction_type", "ISSUE").execute()
+        
+        # Group by part_number and sum quantities
+        usage_dict = {}
+        for log in logs_response.data:
+            part_number = log.get("part_number")
+            quantity = float(log.get("quantity", 0))
+            if part_number in usage_dict:
+                usage_dict[part_number] += quantity
+            else:
+                usage_dict[part_number] = quantity
+        
+        # Get inventory details for each part number
+        inventory_response = supabase.table("aviation_inventory").select(
+            "part_number, description, current_stock, unit_price_usd"
+        ).execute()
+        
+        inventory_dict = {item.get("part_number"): item for item in inventory_response.data}
+        
+        # Build usage data with inventory details
+        usage_data = []
+        total_issued = 0
+        total_cost = 0.0
+        
+        for part_number, total_qty in usage_dict.items():
+            inventory_item = inventory_dict.get(part_number, {})
+            description = inventory_item.get("description", "Unknown")
+            current_stock = float(inventory_item.get("current_stock", 0))
+            unit_price = float(inventory_item.get("unit_price_usd", 0) or 0)
+            cost_analysis = total_qty * unit_price
+            
+            usage_data.append({
+                "part_number": part_number,
+                "description": description,
+                "total_issued": total_qty,
+                "current_stock": current_stock,
+                "unit_price_usd": unit_price,
+                "cost_analysis": round(cost_analysis, 2)
+            })
+            
+            total_issued += total_qty
+            total_cost += cost_analysis
+        
+        # Sort by total_issued descending
+        usage_data.sort(key=lambda x: x["total_issued"], reverse=True)
+        
+        # Get unique items count
+        unique_items = len(usage_data)
+        
+        return templates.TemplateResponse(
+            "usage_report.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Usage Report",
+                "page_icon": "bar-chart",
+                "usage_data": usage_data,
+                "total_issued": round(total_issued, 2),
+                "unique_items": unique_items,
+                "total_cost": round(total_cost, 2)
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error fetching usage report: {e}")
+        return templates.TemplateResponse(
+            "usage_report.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Usage Report",
+                "page_icon": "bar-chart",
+                "usage_data": [],
+                "total_issued": 0,
+                "unique_items": 0,
+                "total_cost": 0
+            }
+        )
+
+
 # =============================================================================
 # ADMIN APPROVALS ROUTES
 # =============================================================================
@@ -624,6 +718,120 @@ async def stock(request: Request):
     )
 
 
+@app.post("/add-item")
+async def add_item(request: Request):
+    """
+    Add new item to aviation_inventory table via form submission.
+    Redirects back to /stock after insertion.
+    """
+    from fastapi.responses import RedirectResponse
+    
+    # Get form data
+    form_data = await request.form()
+    part_number = form_data.get("part_number", "").strip()
+    description = form_data.get("description", "").strip()
+    category = form_data.get("category", "").strip()
+    current_stock = form_data.get("current_stock", "0").strip()
+    batch_no = form_data.get("batch_no", "").strip()
+    expiry_date = form_data.get("expiry_date", "").strip()
+    barcode_number = form_data.get("barcode_number", "").strip()
+    min_threshold = form_data.get("min_threshold", "10").strip()
+    uom = form_data.get("uom", "KG").strip()
+    
+    if not part_number or not description:
+        return RedirectResponse(url="/stock", status_code=303)
+    
+    try:
+        supabase = get_supabase_client()
+        
+        # Parse values, default to 0 or 10 if invalid
+        try:
+            current_stock_value = float(current_stock) if current_stock else 0
+        except ValueError:
+            current_stock_value = 0
+            
+        try:
+            min_threshold_value = float(min_threshold) if min_threshold else 10
+        except ValueError:
+            min_threshold_value = 10
+        
+        # Insert into aviation_inventory table
+        new_item = {
+            "part_number": part_number,
+            "description": description,
+            "category": category,
+            "current_stock": current_stock_value,
+            "opening_stock": current_stock_value,
+            "uom": uom,
+            "min_threshold": min_threshold_value
+        }
+        
+        # Add batch number if provided
+        if batch_no:
+            new_item["batch_no"] = batch_no
+        
+        # Add expiry date if provided (validate format)
+        if expiry_date:
+            try:
+                from datetime import datetime
+                exp_date = datetime.strptime(expiry_date, "%Y-%m-%d")
+                new_item["expiry_date"] = exp_date.strftime("%Y-%m-%d")
+            except ValueError:
+                new_item["expiry_date"] = expiry_date
+        
+        # Add barcode number if provided
+        if barcode_number:
+            new_item["barcode_number"] = barcode_number
+        
+        supabase.table("aviation_inventory").insert(new_item).execute()
+        
+    except Exception as e:
+        print(f"Error adding item: {e}")
+    
+    return RedirectResponse(url="/stock", status_code=303)
+
+
+@app.post("/add-supplier")
+async def add_supplier(request: Request):
+    """
+    Add new supplier to suppliers table via form submission.
+    Redirects back to /suppliers after insertion.
+    """
+    from fastapi.responses import RedirectResponse
+    
+    # Get form data
+    form_data = await request.form()
+    supplier_name = form_data.get("supplier_name", "").strip()
+    contact_person = form_data.get("contact_person", "").strip()
+    email = form_data.get("email", "").strip()
+    phone = form_data.get("phone", "").strip()
+    
+    if not supplier_name:
+        return RedirectResponse(url="/suppliers", status_code=303)
+    
+    try:
+        supabase = get_supabase_client()
+        
+        # Insert into suppliers table
+        new_supplier = {
+            "supplier_name": supplier_name
+        }
+        
+        if contact_person:
+            new_supplier["contact_person"] = contact_person
+        if email:
+            new_supplier["email"] = email
+        if phone:
+            new_supplier["phone"] = phone
+        
+        supabase.table("suppliers").insert(new_supplier).execute()
+        
+    except Exception as e:
+        print(f"Error adding supplier: {e}")
+    
+    return RedirectResponse(url="/suppliers", status_code=303)
+
+
 @app.get("/api/suppliers")
 async def get_suppliers():
     """Get all suppliers for dropdown selection."""
@@ -723,6 +931,45 @@ async def search_inventory(q: str = ""):
         }
 
 
+@app.get("/api/product/search")
+async def search_product(q: str = ""):
+    """
+    Search for a product by barcode number or part number.
+    Used by the staff issuing page.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Search by barcode_number OR part_number
+        response = supabase.table("aviation_inventory").select("*").or_(
+            f"barcode_number.eq.{q},part_number.eq.{q}"
+        ).execute()
+        
+        if response.data and len(response.data) > 0:
+            product = response.data[0]
+            return {
+                "success": True,
+                "product": {
+                    "part_number": product.get("part_number"),
+                    "description": product.get("description"),
+                    "category": product.get("category"),
+                    "current_stock": float(product.get("current_stock", 0)) if product.get("current_stock") else 0,
+                    "uom": product.get("uom", "units"),
+                    "barcode_number": product.get("barcode_number")
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Product not found"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @app.post("/api/quote/save")
 async def save_quote(request: SaveQuoteRequest):
     """
@@ -812,6 +1059,62 @@ async def logout(request: Request):
 
 
 # =============================================================================
+# SUPPLIERS AND STAFF ISSUE ROUTES
+# =============================================================================
+
+@app.get("/suppliers")
+async def suppliers(request: Request):
+    """
+    Suppliers Management page - renders suppliers.html with supplier data.
+    """
+    greeting = get_time_greeting()
+    supabase = get_supabase_client()
+    
+    try:
+        # Fetch all suppliers from the suppliers table
+        response = supabase.table("suppliers").select("*").order("supplier_name").execute()
+        
+        suppliers = []
+        if response.data:
+            suppliers = response.data
+        
+        return templates.TemplateResponse(
+            "suppliers.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Suppliers",
+                "page_icon": "truck",
+                "suppliers": suppliers
+            }
+        )
+    except Exception as e:
+        print(f"Error fetching suppliers: {e}")
+        return templates.TemplateResponse(
+            "suppliers.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Suppliers",
+                "page_icon": "truck",
+                "suppliers": []
+            }
+        )
+
+
+@app.get("/staff/issue")
+async def staff_issue_page(request: Request):
+    """
+    Staff Issue Stock page - dedicated simplified interface for staff to issue stock.
+    Located at /staff/issue route with no sidebar, just Logout and Issue buttons.
+    """
+    return templates.TemplateResponse("staff_issue.html", {
+        "request": request,
+        "greeting": get_time_greeting()
+    })
+
+
+# =============================================================================
 # API ENDPOINTS (for AJAX calls)
 # =============================================================================
 
@@ -883,6 +1186,123 @@ async def update_stock(request: StockUpdateRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating stock: {str(e)}")
+
+
+@app.post("/api/staff/issue")
+async def staff_issue_product(request: Request):
+    """
+    Staff Issue API - Process stock issue with staff name logging.
+    Used by the dedicated Staff Issuing Page at /staff/issue.
+    
+    Request body:
+    {
+        "staff_name": "John Doe",
+        "part_number": "123-456",
+        "quantity": 1
+    }
+    
+    Returns:
+    {
+        "success": true/false,
+        "message": "...",
+        "new_stock": 5,
+        "low_stock": true/false
+    }
+    """
+    from fastapi.responses import JSONResponse
+    
+    try:
+        body = await request.json()
+        staff_name = body.get("staff_name", "").strip()
+        part_number = body.get("part_number", "").strip()
+        quantity = float(body.get("quantity", 0))
+        
+        # Validation
+        if not staff_name:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Staff Name is required"}
+            )
+        
+        if not part_number:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Part number is required"}
+            )
+        
+        if quantity <= 0:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Quantity must be greater than 0"}
+            )
+        
+        supabase = get_supabase_client()
+        
+        # Get current stock and min_threshold
+        response = supabase.table("aviation_inventory").select("current_stock, min_threshold, description").eq("part_number", part_number).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Product not found"}
+            )
+        
+        product = response.data[0]
+        current_stock = float(product.get("current_stock", 0)) if product.get("current_stock") else 0
+        min_threshold = float(product.get("min_threshold", 10)) if product.get("min_threshold") else 10
+        description = product.get("description", "")
+        
+        # Check if enough stock
+        if quantity > current_stock:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Insufficient stock. Available: {current_stock}"}
+            )
+        
+        new_stock = current_stock - quantity
+        
+        # Ensure stock doesn't go negative
+        if new_stock < 0:
+            new_stock = 0
+        
+        # Update the stock in aviation_inventory
+        supabase.table("aviation_inventory").update({
+            "current_stock": new_stock
+        }).eq("part_number", part_number).execute()
+        
+        # Record transaction in stock_logs with Staff Name
+        try:
+            supabase.table("stock_logs").insert({
+                "part_number": part_number,
+                "transaction_type": "ISSUE",
+                "quantity": quantity,
+                "previous_stock": current_stock,
+                "new_stock": new_stock,
+                "notes": f"Issued by: {staff_name}"
+            }).execute()
+        except Exception as log_error:
+            print(f"Error logging stock transaction: {log_error}")
+        
+        # Check if stock is now low (trigger Low Stock flag for Admin)
+        is_low_stock = new_stock <= min_threshold
+        
+        return {
+            "success": True,
+            "message": f"Successfully issued {quantity} units of {part_number}",
+            "part_number": part_number,
+            "description": description,
+            "new_stock": new_stock,
+            "previous_stock": current_stock,
+            "issued_quantity": quantity,
+            "staff_name": staff_name,
+            "low_stock": is_low_stock
+        }
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 # =============================================================================
