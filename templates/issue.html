@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Issue Stock - Aviation ERP{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8 animate-fade-in">
+    <h1 class="text-2xl font-semibold text-primary flex items-center gap-3">
+        <i class="bi bi-box-arrow-up"></i> Stock Issuing
+    </h1>
+    <nav class="mt-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-secondary">Dashboard</a> / <span class="text-secondary">Issue Stock</span>
+    </nav>
+</div>
+
+<div class="max-w-2xl mx-auto">
+    <!-- Issue Stock Form -->
+    <div class="bg-white rounded-xl shadow-lg p-8 animate-fade-in">
+        <h3 class="text-xl font-semibold text-primary flex items-center gap-2 mb-6">
+            <i class="bi bi-pencil-square"></i> Issue Stock
+        </h3>
+        
+        <form id="issueForm" method="POST" action="/staff/issue">
+            <!-- Staff Name -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Staff Name *</label>
+                <input type="text" 
+                       name="staff_name" 
+                       id="staffName"
+                       required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                       placeholder="Enter staff name">
+            </div>
+            
+            <!-- Barcode ID -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Barcode ID *</label>
+                <input type="text" 
+                       name="barcode_id" 
+                       id="barcodeId"
+                       required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent text-lg font-mono"
+                       placeholder="Scan barcode here..."
+                       autofocus>
+            </div>
+            
+            <!-- Quantity -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                <input type="number" 
+                       name="quantity" 
+                       id="quantity"
+                       min="0.01" 
+                       step="0.01"
+                       required
+                       class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent text-lg"
+                       placeholder="Enter quantity">
+                <p id="stockWarning" class="hidden text-red-500 text-sm mt-1">
+                    Warning: Quantity exceeds available stock!
+                </p>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" 
+                    class="w-full px-6 py-4 bg-secondary hover:bg-blue-600 text-white rounded-lg font-semibold text-lg transition-colors flex items-center justify-center gap-2">
+                <i class="bi bi-check-lg"></i> Issue Stock
+            </button>
+        </form>
+    </div>
+    
+    <!-- Product Preview (shown when barcode is entered) -->
+    <div id="productPreview" class="hidden bg-white rounded-xl shadow-lg p-6 mt-6 animate-fade-in">
+        <h4 class="text-lg font-semibold text-green-600 flex items-center gap-2 mb-4">
+            <i class="bi bi-check-circle"></i> Product Found
+        </h4>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500">Part Number</p>
+                <p id="previewPartNumber" class="font-semibold text-lg">-</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Description</p>
+                <p id="previewDescription" class="font-semibold">-</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Current Stock</p>
+                <p id="previewStock" class="font-semibold text-xl text-green-600">-</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Category</p>
+                <p id="previewCategory" class="font-semibold">-</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Success Message -->
+    {% if success_message %}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-xl mt-6 animate-fade-in">
+        <div class="flex items-center gap-3">
+            <i class="bi bi-check-circle-fill text-2xl"></i>
+            <p class="font-semibold">{{ success_message }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Error Message -->
+    {% if error_message %}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-xl mt-6 animate-fade-in">
+        <div class="flex items-center gap-3">
+            <i class="bi bi-exclamation-circle-fill text-2xl"></i>
+            <p class="font-semibold">{{ error_message }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease forwards;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentStock = 0;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const barcodeInput = document.getElementById('barcodeId');
+        
+        // Auto-focus on barcode input on page load
+        setTimeout(function() {
+            barcodeInput.focus();
+        }, 100);
+        
+        // Check stock when barcode is entered (blur event)
+        barcodeInput.addEventListener('blur', async function() {
+            const barcode = this.value.trim();
+            if (barcode) {
+                await checkProduct(barcode);
+            }
+        });
+        
+        // Also check on Enter key
+        barcodeInput.addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const barcode = this.value.trim();
+                if (barcode) {
+                    await checkProduct(barcode);
+                }
+            }
+        });
+        
+        // Quantity validation
+        document.getElementById('quantity').addEventListener('input', function() {
+            const quantity = parseFloat(this.value);
+            const warning = document.getElementById('stockWarning');
+            
+            if (quantity > currentStock && currentStock > 0) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        });
+    });
+    
+    async function checkProduct(barcode) {
+        try {
+            const response = await fetch(`/api/product/search?q=${encodeURIComponent(barcode)}`);
+            const data = await response.json();
+            
+            if (data.success && data.product) {
+                currentStock = data.product.current_stock;
+                
+                // Show product preview
+                document.getElementById('previewPartNumber').textContent = data.product.part_number;
+                document.getElementById('previewDescription').textContent = data.product.description || '-';
+                document.getElementById('previewStock').textContent = data.product.current_stock + ' ' + (data.product.uom || 'units');
+                document.getElementById('previewCategory').textContent = data.product.category || '-';
+                document.getElementById('productPreview').classList.remove('hidden');
+                
+                // Focus on quantity field
+                document.getElementById('quantity').focus();
+            } else {
+                document.getElementById('productPreview').classList.add('hidden');
+                currentStock = 0;
+            }
+        } catch (error) {
+            console.error('Error checking product:', error);
+            document.getElementById('productPreview').classList.add('hidden');
+            currentStock = 0;
+        }
+    }
+</script>
+{% endblock %}
+

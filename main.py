@@ -693,6 +693,141 @@ async def staff_issue_page(request: Request):
     })
 
 
+@app.get("/issue")
+async def issue_page(request: Request):
+    """
+    Stock Issuing page - dedicated form for staff to issue stock.
+    """
+    return templates.TemplateResponse("issue.html", {
+        "request": request,
+        "greeting": get_greeting(),
+        "success_message": None,
+        "error_message": None
+    })
+
+
+@app.post("/issue")
+async def issue_stock_post(request: Request):
+    """
+    Handle stock issue form submission.
+    Validates barcode, updates stock, and logs transaction.
+    """
+    form_data = await request.form()
+    staff_name = form_data.get("staff_name", "").strip()
+    barcode_id = form_data.get("barcode_id", "").strip()
+    quantity = form_data.get("quantity", "").strip()
+    
+    # Validation
+    if not staff_name:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": "Staff Name is required"
+        })
+    
+    if not barcode_id:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": "Barcode ID is required"
+        })
+    
+    if not quantity:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": "Quantity is required"
+        })
+    
+    try:
+        quantity_float = float(quantity)
+    except ValueError:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": "Invalid quantity"
+        })
+    
+    if quantity_float <= 0:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": "Quantity must be greater than 0"
+        })
+    
+    supabase = get_supabase_client()
+    
+    # Find product by barcode
+    try:
+        response = supabase.table("aviation_inventory").select("*").eq("barcode_number", barcode_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            return templates.TemplateResponse("issue.html", {
+                "request": request,
+                "greeting": get_greeting(),
+                "success_message": None,
+                "error_message": "Product not found with this Barcode ID"
+            })
+        
+        product = response.data[0]
+        part_number = product.get("part_number")
+        description = product.get("description")
+        current_stock = float(product.get("current_stock", 0)) if product.get("current_stock") else 0
+        
+        # Check if enough stock
+        if quantity_float > current_stock:
+            return templates.TemplateResponse("issue.html", {
+                "request": request,
+                "greeting": get_greeting(),
+                "success_message": None,
+                "error_message": f"Insufficient stock. Available: {current_stock}"
+            })
+        
+        # Calculate new stock
+        new_stock = current_stock - quantity_float
+        
+        # Update stock in aviation_inventory
+        supabase.table("aviation_inventory").update({
+            "current_stock": new_stock
+        }).eq("part_number", part_number).execute()
+        
+        # Log transaction in stock_logs
+        try:
+            supabase.table("stock_logs").insert({
+                "part_number": part_number,
+                "transaction_type": "ISSUE",
+                "quantity": quantity_float,
+                "previous_stock": current_stock,
+                "new_stock": new_stock,
+                "notes": f"Issued by: {staff_name}"
+            }).execute()
+        except Exception as log_error:
+            print(f"Error logging stock transaction: {log_error}")
+        
+        # Success!
+        success_message = f"Item {part_number} issued by {staff_name}. Remaining stock: {new_stock}"
+        
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": success_message,
+            "error_message": None
+        })
+        
+    except Exception as e:
+        return templates.TemplateResponse("issue.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "success_message": None,
+            "error_message": f"Error: {str(e)}"
+        })
+
+
 @app.get("/api/product/search")
 async def search_product(q: str = Query(..., description="Search query (barcode or part number)")):
     """
