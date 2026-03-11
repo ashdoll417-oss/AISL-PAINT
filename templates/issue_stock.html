@@ -229,6 +229,18 @@
                 // Reset for next scan
                 document.getElementById('issueQuantity').value = '';
                 document.getElementById('barcodeScanner').focus();
+                
+                // Notify parent window (if in iframe) or trigger custom event for dashboard update
+                // This ensures the dashboard reflects new low stock count immediately
+                if (window.parent !== window) {
+                    // We're in an iframe, notify parent
+                    window.parent.postMessage({ type: 'stock_issued', partNumber: partNumber, newStock: data.new_stock }, '*');
+                }
+                
+                // Dispatch custom event for dashboard update
+                window.dispatchEvent(new CustomEvent('stockIssued', { 
+                    detail: { partNumber: partNumber, newStock: data.newStock } 
+                }));
             } else {
                 alert('Error: ' + (data.detail || 'Unknown error'));
             }

@@ -1,32 +1,31 @@
-# Barcode Scanning Implementation TODO
+# TODO: Dynamic Low Stock Alert Implementation
 
-## Phase 1: Database Schema Update
-- [x] Add barcode_number column to aviation_inventory table in SQL
-- [x] Add index for barcode_number column
+## Step 1: Database Schema Update
+- [x] Update aviation_inventory.sql - Add min_threshold column
 
-## Phase 2: Stock Form & Display Updates
-- [x] Update stock.html - Add Barcode Number input field in Manual Entry Form
-- [x] Add JavaScript autofocus on Barcode Number field
-- [ ] Add barcode column to stock tables (Paints & Carpets) - OPTIONAL display enhancement
+## Step 2: Backend Updates (main.py)
+- [x] Update get_low_stock_items() function to check current_stock <= min_threshold
+- [x] Add GET /api/low-stock/count endpoint for real-time polling
+- [x] Add GET /api/low-stock/details endpoint for modal data
+- [x] Update add_item endpoint to handle min_threshold field
 
-## Phase 3: Backend Route Updates
-- [x] Update /add-item route to save barcode_number to Supabase
-- [ ] Update /stock page to include barcode data - OPTIONAL display enhancement
+## Step 3: Dashboard UI (dashboard.html)
+- [x] Add Notifications section at top
+- [x] Create red flashing alert card
+- [x] Add clickable modal showing part numbers and quantities
+- [x] Add JavaScript for polling every 10 seconds
 
-## Phase 4: Issue Item Feature (NEW)
-- [x] Create /issue-item route in main.py
-- [x] Create templates/issue_item.html
-- [x] Implement barcode lookup functionality
-- [x] Implement quantity input and stock subtraction
+## Step 4: Stock Page (stock.html)
+- [x] Add min_threshold field to manual entry form
 
-## Phase 5: Search Updates
-- [x] Add search by barcode OR part number (via API endpoint)
-- [ ] Integrate search in stock page - OPTIONAL enhancement
+## Step 5: Real-time Update (issue_stock.html)
+- [x] Update issue_stock.html to trigger notification on successful issue
 
-## Phase 6: Navigation Update
-- [x] Add "Issue Item" link to sidebar in base.html
-
-## Implementation Complete
-- All core features implemented!
-- To apply database changes, run the SQL from aviation_inventory.sql in your Supabase dashboard
+## Implementation Complete!
+All features have been implemented:
+- Dynamic low stock alerts based on per-item min_threshold
+- Flashing red alert on dashboard when items are low
+- Clickable modal showing detailed list of low stock items
+- Real-time polling every 10 seconds
+- Immediate update after staff issues items
 

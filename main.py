@@ -274,6 +274,45 @@ def is_expiring_soon(expiry_date_str: str) -> bool:
         return False
 
 
+def get_low_stock_items() -> List[dict]:
+    """
+    Get all items where current_stock <= min_threshold.
+    Each item has its own min_threshold value (default 10 if not set).
+    
+    Returns:
+        List of low stock items with part_number, description, current_stock, min_threshold, uom
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Fetch all items with their min_threshold values
+        response = supabase.table("aviation_inventory").select(
+            "part_number, description, current_stock, min_threshold, uom"
+        ).execute()
+        
+        low_stock_items = []
+        if response.data:
+            for row in response.data:
+                current_stock = float(row.get("current_stock", 0)) if row.get("current_stock") else 0
+                min_threshold = float(row.get("min_threshold", 10)) if row.get("min_threshold") else 10
+                
+                # Check if current_stock <= min_threshold
+                if current_stock <= min_threshold:
+                    item = {
+                        "part_number": row.get("part_number", ""),
+                        "description": row.get("description", ""),
+                        "current_stock": current_stock,
+                        "min_threshold": min_threshold,
+                        "uom": row.get("uom", "units")
+                    }
+                    low_stock_items.append(item)
+        
+        return low_stock_items
+    except Exception as e:
+        print(f"Error fetching low stock items: {e}")
+        return []
+
+
 def build_inventory_items(rows: list) -> List[InventoryItem]:
     """
     Build inventory items from database rows with enhanced display fields.
@@ -361,7 +400,9 @@ async def root(request: Request):
     
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "greeting": greeting
+        "greeting": greeting,
+        "low_stock_items": get_low_stock_items(),
+        "low_stock_count": len(get_low_stock_items())
     })
 
 
@@ -459,6 +500,58 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+
+# =============================================================================
+# LOW STOCK API ENDPOINTS (Real-time Polling)
+# =============================================================================
+
+@app.get("/api/low-stock/count")
+async def get_low_stock_count():
+    """
+    API endpoint to get the count of low stock items.
+    Used for real-time polling from the dashboard.
+    
+    Returns:
+        JSON with count of items where current_stock <= min_threshold
+    """
+    try:
+        low_stock_items = get_low_stock_items()
+        return {
+            "success": True,
+            "count": len(low_stock_items)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "count": 0
+        }
+
+
+@app.get("/api/low-stock/details")
+async def get_low_stock_details():
+    """
+    API endpoint to get detailed list of low stock items.
+    Used for displaying the modal with part numbers and quantities.
+    
+    Returns:
+        JSON with list of low stock items (part_number, description, current_stock, min_threshold, uom)
+    """
+    try:
+        low_stock_items = get_low_stock_items()
+        return {
+            "success": True,
+            "items": low_stock_items,
+            "count": len(low_stock_items)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "items": [],
+            "count": 0
+        }
 
 
 # =============================================================================
@@ -563,6 +656,7 @@ async def add_item(request: Request):
     batch_no = form_data.get("batch_no", "").strip()
     expiry_date = form_data.get("expiry_date", "").strip()
     barcode_number = form_data.get("barcode_number", "").strip()
+    min_threshold = form_data.get("min_threshold", "10").strip()
     
     if not part_number or not description:
         # Redirect back to stock with error (could add error handling)
@@ -571,6 +665,12 @@ async def add_item(request: Request):
     try:
         supabase = get_supabase_client()
         
+        # Parse min_threshold, default to 10 if invalid
+        try:
+            min_threshold_value = float(min_threshold) if min_threshold else 10
+        except ValueError:
+            min_threshold_value = 10
+        
         # Insert into aviation_inventory table
         new_item = {
             "part_number": part_number,
@@ -578,7 +678,8 @@ async def add_item(request: Request):
             "category": category,
             "current_stock": 0,
             "opening_stock": 0,
-            "uom": "KG"  # Default UOM
+            "uom": "KG",  # Default UOM
+            "min_threshold": min_threshold_value
         }
         
         # Add batch number if provided

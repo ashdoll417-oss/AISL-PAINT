@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS aviation_inventory (
     sold_stock NUMERIC NOT NULL DEFAULT 0,
     in_house NUMERIC NOT NULL DEFAULT 0,
     current_stock NUMERIC NOT NULL,
+    min_threshold NUMERIC NOT NULL DEFAULT 10,
     batch_no TEXT,
     dom DATE,
     expiry_date DATE,

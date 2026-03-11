@@ -3,6 +3,27 @@
 {% block title %}Dashboard - Aviation ERP{% endblock %}
 
 {% block content %}
+<!-- Notifications Section -->
+<div id="notificationsSection" class="mb-8">
+    <!-- Low Stock Alert Card (Flash Effect) -->
+    <div id="lowStockAlert" class="hidden bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg p-6 cursor-pointer hover:from-red-600 hover:to-red-700 transition-all duration-300 transform hover:scale-[1.02]" onclick="showLowStockModal()">
+        <div class="flex items-center justify-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                <i class="bi bi-exclamation-triangle-fill text-2xl text-white"></i>
+            </div>
+            <div class="text-center">
+                <h3 class="text-white text-xl font-bold animate-pulse">
+                    ⚠️ ALERT: <span id="lowStockCount">0</span> Items are Low in Stock!
+                </h3>
+                <p class="text-red-100 text-sm mt-1">Click to view details</p>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                <i class="bi bi-exclamation-triangle-fill text-2xl text-white"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Welcome Card -->
 <div class="bg-white rounded-2xl shadow-lg p-12 text-center mb-8 animate-fade-in">
     <div class="text-6xl text-secondary mb-4">
@@ -42,12 +63,45 @@
     </div>
     
     <!-- Low Stock Items -->
-    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in" style="animation-delay: 0.4s;">
+    <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow duration-300 animate-fade-in cursor-pointer" style="animation-delay: 0.4s;" onclick="showLowStockModal()">
         <div class="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center text-red-500 text-xl mb-4">
             <i class="bi bi-box-seam"></i>
         </div>
-        <h3 class="text-3xl font-bold text-primary">12</h3>
+        <h3 class="text-3xl font-bold text-primary">{{ low_stock_count }}</h3>
         <p class="text-gray-500 text-sm mt-1">Low Stock Items</p>
+    </div>
+</div>
+
+<!-- Low Stock Details Modal -->
+<div id="lowStockModal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+        <!-- Modal Header -->
+        <div class="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-white text-xl font-bold flex items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill"></i> Low Stock Items
+            </h3>
+            <button onclick="hideLowStockModal()" class="text-white/80 hover:text-white hover:bg-white/20 rounded-full p-2 transition-colors">
+                <i class="bi bi-x-lg text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <div class="p-6 overflow-y-auto max-h-[60vh]">
+            <div id="lowStockList" class="space-y-3">
+                <!-- Items will be loaded dynamically -->
+                <div class="text-center py-8 text-gray-500">
+                    <i class="bi bi-hourglass-split animate-spin text-3xl mb-2"></i>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+            <button onclick="hideLowStockModal()" class="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                Close
+            </button>
+        </div>
     </div>
 </div>
 
@@ -57,10 +111,200 @@
         to { opacity: 1; transform: translateY(0); }
     }
     
+    @keyframes flash {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
     .animate-fade-in {
         animation: fadeIn 0.5s ease forwards;
         opacity: 0;
     }
+    
+    .animate-flash {
+        animation: flash 1s ease-in-out infinite;
+    }
+    
+    /* Custom scrollbar for modal */
+    #lowStockList::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #lowStockList::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    #lowStockList::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+    
+    #lowStockList::-webkit-scrollbar-thumb:hover {
+        background: #a1a1a1;
+    }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Low stock state
+    let lowStockData = [];
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial fetch
+        fetchLowStockCount();
+        
+        // Poll every 10 seconds for real-time updates
+        setInterval(fetchLowStockCount, 10000);
+    });
+    
+    // Fetch low stock count from API
+    async function fetchLowStockCount() {
+        try {
+            const response = await fetch('/api/low-stock/count');
+            const data = await response.json();
+            
+            if (data.success && data.count > 0) {
+                showAlert(data.count);
+            } else {
+                hideAlert();
+            }
+        } catch (error) {
+            console.error('Error fetching low stock count:', error);
+        }
+    }
+    
+    // Show the alert card
+    function showAlert(count) {
+        const alertCard = document.getElementById('lowStockAlert');
+        const countElement = document.getElementById('lowStockCount');
+        
+        if (alertCard && countElement) {
+            countElement.textContent = count;
+            alertCard.classList.remove('hidden');
+            alertCard.classList.add('animate-flash');
+        }
+    }
+    
+    // Hide the alert card
+    function hideAlert() {
+        const alertCard = document.getElementById('lowStockAlert');
+        
+        if (alertCard) {
+            alertCard.classList.add('hidden');
+            alertCard.classList.remove('animate-flash');
+        }
+    }
+    
+    // Show the low stock modal
+    async function showLowStockModal() {
+        const modal = document.getElementById('lowStockModal');
+        const listContainer = document.getElementById('lowStockList');
+        
+        if (modal && listContainer) {
+            modal.classList.remove('hidden');
+            
+            // Show loading state
+            listContainer.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="bi bi-hourglass-split animate-spin text-3xl mb-2"></i>
+                    <p>Loading...</p>
+                </div>
+            `;
+            
+            // Fetch detailed low stock items
+            try {
+                const response = await fetch('/api/low-stock/details');
+                const data = await response.json();
+                
+                if (data.success && data.items && data.items.length > 0) {
+                    renderLowStockList(data.items);
+                } else {
+                    listContainer.innerHTML = `
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="bi bi-check-circle text-3xl mb-2 text-green-500"></i>
+                            <p>No low stock items</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error fetching low stock details:', error);
+                listContainer.innerHTML = `
+                    <div class="text-center py-8 text-red-500">
+                        <i class="bi bi-exclamation-circle text-3xl mb-2"></i>
+                        <p>Error loading data</p>
+                    </div>
+                `;
+            }
+        }
+    }
+    
+    // Render the low stock list
+    function renderLowStockList(items) {
+        const listContainer = document.getElementById('lowStockList');
+        
+        if (!listContainer) return;
+        
+        let html = '';
+        
+        items.forEach(item => {
+            const stockPercentage = item.min_threshold > 0 ? Math.round((item.current_stock / item.min_threshold) * 100) : 0;
+            const isCritical = item.current_stock <= item.min_threshold * 0.5;
+            
+            html += `
+                <div class="bg-white border ${isCritical ? 'border-red-300 bg-red-50' : 'border-gray-200'} rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold text-gray-900">${item.part_number || 'N/A'}</span>
+                                ${isCritical ? '<span class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">Critical</span>' : ''}
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">${item.description || 'No description'}</p>
+                        </div>
+                        <div class="text-right ml-4">
+                            <div class="text-2xl font-bold ${isCritical ? 'text-red-600' : 'text-orange-600'}">
+                                ${item.current_stock} <span class="text-sm font-normal text-gray-500">${item.uom || 'units'}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                Min: ${item.min_threshold} ${item.uom || 'units'}
+                            </div>
+                            <!-- Progress bar -->
+                            <div class="w-24 h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                                <div class="h-full ${isCritical ? 'bg-red-500' : 'bg-orange-500'}" style="width: ${Math.min(stockPercentage, 100)}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        listContainer.innerHTML = html;
+    }
+    
+    // Hide the low stock modal
+    function hideLowStockModal() {
+        const modal = document.getElementById('lowStockModal');
+        
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+    
+    // Close modal when clicking outside
+    document.getElementById('lowStockModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideLowStockModal();
+        }
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideLowStockModal();
+        }
+    });
+</script>
 {% endblock %}
 
