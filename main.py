@@ -662,6 +662,121 @@ async def quote_page(request: Request):
 
 
 # =============================================================================
+# SUPPLIERS ROUTES
+# =============================================================================
+
+@app.get("/suppliers")
+async def suppliers_page(request: Request):
+    """
+    Suppliers Management page - renders suppliers.html with supplier data.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        # Fetch all suppliers from the suppliers table
+        response = supabase.table("suppliers").select("*").order("supplier_name").execute()
+        
+        suppliers = []
+        if response.data:
+            suppliers = response.data
+        
+        return templates.TemplateResponse("suppliers.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "suppliers": suppliers
+        })
+    except Exception as e:
+        return templates.TemplateResponse("suppliers.html", {
+            "request": request,
+            "greeting": get_greeting(),
+            "suppliers": []
+        })
+
+
+@app.post("/add-supplier")
+async def add_supplier(request: Request):
+    """
+    Add new supplier to suppliers table via form submission.
+    Redirects back to /suppliers after insertion.
+    """
+    from fastapi.responses import RedirectResponse
+    
+    # Get form data
+    form_data = await request.form()
+    supplier_name = form_data.get("supplier_name", "").strip()
+    contact_person = form_data.get("contact_person", "").strip()
+    email = form_data.get("email", "").strip()
+    phone = form_data.get("phone", "").strip()
+    
+    if not supplier_name:
+        return RedirectResponse(url="/suppliers", status_code=303)
+    
+    try:
+        supabase = get_supabase_client()
+        
+        # Insert into suppliers table
+        new_supplier = {
+            "supplier_name": supplier_name
+        }
+        
+        if contact_person:
+            new_supplier["contact_person"] = contact_person
+        if email:
+            new_supplier["email"] = email
+        if phone:
+            new_supplier["phone"] = phone
+        
+        supabase.table("suppliers").insert(new_supplier).execute()
+        
+    except Exception as e:
+        print(f"Error adding supplier: {e}")
+    
+    return RedirectResponse(url="/suppliers", status_code=303)
+
+
+@app.get("/api/suppliers")
+async def get_suppliers_api():
+    """
+    API endpoint to get all suppliers for dropdown integration.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        response = supabase.table("suppliers").select("id, supplier_name").order("supplier_name").execute()
+        
+        return {
+            "success": True,
+            "suppliers": response.data if response.data else []
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.delete("/api/supplier/{supplier_id}")
+async def delete_supplier(supplier_id: str):
+    """
+    Delete a supplier by ID.
+    """
+    supabase = get_supabase_client()
+    
+    try:
+        supabase.table("suppliers").delete().eq("id", supplier_id).execute()
+        
+        return {
+            "success": True,
+            "message": "Supplier deleted successfully"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "detail": str(e)
+        }
+
+
+# =============================================================================
 # MAIN ENTRY POINT
 # =============================================================================
 
