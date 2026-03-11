@@ -810,7 +810,7 @@ async def add_item(request: Request):
     current_stock = form_data.get("current_stock", "0").strip()
     batch_no = form_data.get("batch_no", "").strip()
     expiry_date = form_data.get("expiry_date", "").strip()
-    barcode_number = form_data.get("barcode_number", "").strip()
+    barcode_id = form_data.get("barcode_id", "").strip()
     min_threshold = form_data.get("min_threshold", "").strip()
     uom = form_data.get("uom", "KG").strip()
     
@@ -835,7 +835,7 @@ async def add_item(request: Request):
             except ValueError:
                 min_threshold_value = 5
         
-        # Insert into aviation_inventory table
+        # Insert into aviation_inventory table with correct column names
         new_item = {
             "part_number": part_number,
             "description": description,
@@ -859,14 +859,19 @@ async def add_item(request: Request):
             except ValueError:
                 new_item["expiry_date"] = expiry_date
         
-        # Add barcode number if provided
-        if barcode_number:
-            new_item["barcode_number"] = barcode_number
+        # Add barcode_id if provided
+        if barcode_id:
+            new_item["barcode_id"] = barcode_id
         
         supabase.table("aviation_inventory").insert(new_item).execute()
         
     except Exception as e:
-        print(f"Error adding item: {e}")
+        error_msg = str(e)
+        print(f"Error adding item: {error_msg}")
+        # Return the error message to help debug - URL encode the error
+        from urllib.parse import quote
+        encoded_error = quote(error_msg)
+        return RedirectResponse(url=f"/stock?error={encoded_error}", status_code=303)
     
     return RedirectResponse(url="/stock", status_code=303)
 
