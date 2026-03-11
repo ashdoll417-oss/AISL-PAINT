@@ -247,15 +247,48 @@ async def dashboard(request: Request):
     Main Dashboard page.
     
     Displays welcome message and quick stats.
+    Fail-Safe: Wrapped in try/except to prevent page crashes.
+    Uses explicit table name 'aviation_inventory' (lowercase).
+    Uses item.get('min_threshold', 5) for low-stock calculation.
     """
     greeting = get_time_greeting()
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "greeting": greeting
-        }
-    )
+    supabase = get_supabase_client()
+    
+    # Fail-Safe: Wrap stock fetching in try/except to prevent page crashes
+    try:
+        # Explicitly use table name 'aviation_inventory' (lowercase, exactly as in Supabase)
+        response = supabase.table("aviation_inventory").select(
+            "id, part_number, description, current_stock, min_threshold"
+        ).execute()
+        
+        all_items = response.data if response.data else []
+        
+        # Use item.get('min_threshold', 5) for safe low-stock calculation
+        low_stock_items = [
+            item for item in all_items 
+            if float(item.get('current_stock', 0)) <= float(item.get('min_threshold', 5))
+        ]
+        
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "low_stock_items": low_stock_items,
+                "low_stock_count": len(low_stock_items)
+            }
+        )
+    except Exception as e:
+        print(f"Error fetching dashboard data: {e}")
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "low_stock_items": [],
+                "low_stock_count": 0
+            }
+        )
 
 
 @app.get("/sales")
@@ -479,100 +512,6 @@ async def usage_reports(request: Request):
                 "unique_items": 0,
                 "total_cost": 0,
                 "usage_data_json": []
-            }
-        )
-
-
-@app.get("/usage-report")
-async def usage_report(request: Request):
-    """Usage Report page - shows stock issues from last 30 days."""
-    greeting = get_time_greeting()
-    supabase = get_supabase_client()
-    
-    try:
-        # Calculate date 30 days ago
-        from datetime import timedelta
-        thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
-        
-        # Query stock_logs for ISSUEs in the last 30 days
-        logs_response = supabase.table("stock_logs").select(
-            "part_number, quantity, created_at"
-        ).gte("created_at", thirty_days_ago).eq("transaction_type", "ISSUE").execute()
-        
-        # Group by part_number and sum quantities
-        usage_dict = {}
-        for log in logs_response.data:
-            part_number = log.get("part_number")
-            quantity = float(log.get("quantity", 0))
-            if part_number in usage_dict:
-                usage_dict[part_number] += quantity
-            else:
-                usage_dict[part_number] = quantity
-        
-        # Get inventory details for each part number
-        inventory_response = supabase.table("aviation_inventory").select(
-            "part_number, description, current_stock, unit_price_usd"
-        ).execute()
-        
-        inventory_dict = {item.get("part_number"): item for item in inventory_response.data}
-        
-        # Build usage data with inventory details
-        usage_data = []
-        total_issued = 0
-        total_cost = 0.0
-        
-        for part_number, total_qty in usage_dict.items():
-            inventory_item = inventory_dict.get(part_number, {})
-            description = inventory_item.get("description", "Unknown")
-            current_stock = float(inventory_item.get("current_stock", 0))
-            unit_price = float(inventory_item.get("unit_price_usd", 0) or 0)
-            cost_analysis = total_qty * unit_price
-            
-            usage_data.append({
-                "part_number": part_number,
-                "description": description,
-                "total_issued": total_qty,
-                "current_stock": current_stock,
-                "unit_price_usd": unit_price,
-                "cost_analysis": round(cost_analysis, 2)
-            })
-            
-            total_issued += total_qty
-            total_cost += cost_analysis
-        
-        # Sort by total_issued descending
-        usage_data.sort(key=lambda x: x["total_issued"], reverse=True)
-        
-        # Get unique items count
-        unique_items = len(usage_data)
-        
-        return templates.TemplateResponse(
-            "usage_report.html",
-            {
-                "request": request,
-                "greeting": greeting,
-                "page_title": "Usage Report",
-                "page_icon": "bar-chart",
-                "usage_data": usage_data,
-                "total_issued": round(total_issued, 2),
-                "unique_items": unique_items,
-                "total_cost": round(total_cost, 2)
-            }
-        )
-        
-    except Exception as e:
-        print(f"Error fetching usage report: {e}")
-        return templates.TemplateResponse(
-            "usage_report.html",
-            {
-                "request": request,
-                "greeting": greeting,
-                "page_title": "Usage Report",
-                "page_icon": "bar-chart",
-                "usage_data": [],
-                "total_issued": 0,
-                "unique_items": 0,
-                "total_cost": 0
             }
         )
 

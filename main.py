@@ -400,11 +400,20 @@ async def root(request: Request):
     else:
         greeting = "Good Evening"
     
+    # Fail-Safe: Wrap stock fetching in try/except to prevent page crashes
+    try:
+        low_stock_items = get_low_stock_items()
+        low_stock_count = len(low_stock_items)
+    except Exception as e:
+        print(f"Error fetching low stock items: {e}")
+        low_stock_items = []
+        low_stock_count = 0
+    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "greeting": greeting,
-        "low_stock_items": get_low_stock_items(),
-        "low_stock_count": len(get_low_stock_items())
+        "low_stock_items": low_stock_items,
+        "low_stock_count": low_stock_count
     })
 
 

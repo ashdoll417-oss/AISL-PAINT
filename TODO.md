@@ -1,21 +1,26 @@
-# TODO: Update min_threshold to be bulletproof
+# TODO: Fix Dashboard Routes - Fail-Safe Implementation
 
-## Changes Required:
+## Task Overview
+Make the dashboard routes fail-safe with proper try/except handling, explicit table names, and default min_threshold values.
 
-### 1. main.py Updates
-- [ ] 1.1 Update `get_low_stock_items()` function - change default from 10 to 5
-- [ ] 1.2 Update `/add-item` route - convert min_threshold to integer, default to 5
-- [ ] 1.3 Update `/api/product/issue` endpoint - change default from 10 to 5
-- [ ] 1.4 Update `/api/staff/issue` endpoint - change default from 10 to 5
+## Steps to Complete
 
-### 2. admin_dashboard.py Updates
-- [ ] 2.1 Update `get_inventory_data()` function - change default from 10 to 5
-- [ ] 2.2 Update `/stock` endpoint - already uses 5 (verified)
-- [ ] 2.3 Update `/add-item` route - change float to int conversion, default to 5
-- [ ] 2.4 Update `/api/staff/issue` endpoint - change default from 10 to 5
+- [x] 1. Fix main.py - Dashboard route `/` with try/except and item.get('min_threshold', 5)
+- [x] 2. Fix admin_dashboard.py - Dashboard route `/` with try/except and item.get('min_threshold', 5)
+- [x] 3. Fix admin_dashboard.py - Clean up malformed code section
+- [x] 4. Fix admin_dashboard.py - Ensure /usage-report uses TemplateResponse
 
-## Completion Criteria:
-- All min_threshold defaults are now 5
-- Low stock filter uses explicit .get('min_threshold', 5)
-- Add item routes convert min_threshold to integer
+## Changes Summary
+
+### main.py changes:
+- Wrap stock fetching in dashboard route with try/except
+- Use item.get('min_threshold', 5) for low-stock calculation
+
+### admin_dashboard.py changes:
+- Wrap stock fetching in dashboard route with try/except
+- Use item.get('min_threshold', 5) for low-stock calculation
+- Fix malformed code between two usage report functions
+- Ensure /usage-report route uses templates.TemplateResponse
+
+## All Tasks Completed! ✅
 
