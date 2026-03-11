@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 import pytz
@@ -72,6 +72,7 @@ class InventoryItem(BaseModel):
     current_stock: float
     batch_no: Optional[str] = None
     dom: Optional[str] = None
+    expiry_date: Optional[str] = None
     category: Optional[str] = None
     # Custom fields added by API
     stock_display: Optional[str] = Field(default=None, description="Stock with unit")
@@ -79,6 +80,7 @@ class InventoryItem(BaseModel):
     stock_unit: Optional[str] = Field(default=None, description="Stock unit (KG/L/Linear Meters)")
     notes: Optional[str] = Field(default=None, description="Additional notes for paint kits")
     display_name: Optional[str] = Field(default=None, description="Formatted display name for Carpet items: [COLOR/TYPE] - [DESCRIPTION]")
+    is_expiring_soon: bool = Field(default=False, description="Whether item is within 30 days of expiring")
 
 
 class InventoryResponse(BaseModel):
@@ -235,6 +237,41 @@ def get_carpet_display_name(description: str, category: str) -> Optional[str]:
         return f"{color_type} - {description}"
     
     return None
+
+
+def is_expiring_soon(expiry_date_str: str) -> bool:
+    """
+    Check if an item is expiring within 30 days using Africa/Nairobi timezone.
+    
+    Args:
+        expiry_date_str: Expiry date string (ISO format YYYY-MM-DD)
+    
+    Returns:
+        True if item is expiring within 30 days, False otherwise
+    """
+    if not expiry_date_str:
+        return False
+    
+    try:
+        # Use Nairobi timezone for date comparison
+        nairobi_tz = pytz.timezone('Africa/Nairobi')
+        now = datetime.now(nairobi_tz)
+        
+        # Parse expiry date
+        if isinstance(expiry_date_str, str):
+            expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d")
+            # Make it timezone-aware
+            expiry_date = nairobi_tz.localize(expiry_date)
+        else:
+            return False
+        
+        # Check if expiry is within 30 days
+        days_until_expiry = (expiry_date - now).days
+        
+        # Return True if expiring within 30 days (including expired items)
+        return days_until_expiry <= 30
+    except Exception:
+        return False
 
 
 def build_inventory_items(rows: list) -> List[InventoryItem]:
@@ -463,6 +500,20 @@ async def stock_page(request: Request):
                 elif "ECONYL" in description or "RIPS" in description:
                     color_type = "ECONYL RIPS"
                 
+                # Get expiry date and check if expiring soon
+                expiry_date = row.get("expiry_date")
+                expiring_soon = is_expiring_soon(expiry_date)
+                
+                # Format expiry date for display
+                expiry_display = None
+                if expiry_date:
+                    try:
+                        # Format as DD/MM/YYYY for display
+                        exp_date = datetime.strptime(str(expiry_date), "%Y-%m-%d")
+                        expiry_display = exp_date.strftime("%d/%m/%Y")
+                    except:
+                        expiry_display = str(expiry_date)
+                
                 item = {
                     "part_number": row.get("part_number", ""),
                     "description": row.get("description", ""),
@@ -470,7 +521,10 @@ async def stock_page(request: Request):
                     "uom": row.get("uom", "KG"),
                     "category": row.get("category", ""),
                     "is_available": (row.get("current_stock", 0) or 0) > 0,
-                    "color_type": color_type
+                    "color_type": color_type,
+                    "batch_no": row.get("batch_no"),
+                    "expiry_date": expiry_display,
+                    "is_expiring_soon": expiring_soon
                 }
                 
                 if is_carpet:
@@ -506,6 +560,8 @@ async def add_item(request: Request):
     part_number = form_data.get("part_number", "").strip()
     description = form_data.get("description", "").strip()
     category = form_data.get("category", "").strip()
+    batch_no = form_data.get("batch_no", "").strip()
+    expiry_date = form_data.get("expiry_date", "").strip()
     
     if not part_number or not description:
         # Redirect back to stock with error (could add error handling)
@@ -523,6 +579,22 @@ async def add_item(request: Request):
             "opening_stock": 0,
             "uom": "KG"  # Default UOM
         }
+        
+        # Add batch number if provided
+        if batch_no:
+            new_item["batch_no"] = batch_no
+        
+        # Add expiry date if provided (validate format)
+        if expiry_date:
+            # Ensure date is in YYYY-MM-DD format for Supabase
+            try:
+                from datetime import datetime
+                # Try to parse and reformat the date
+                exp_date = datetime.strptime(expiry_date, "%Y-%m-%d")
+                new_item["expiry_date"] = exp_date.strftime("%Y-%m-%d")
+            except ValueError:
+                # If already in correct format or invalid, just store as-is
+                new_item["expiry_date"] = expiry_date
         
         supabase.table("aviation_inventory").insert(new_item).execute()
         

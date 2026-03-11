@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS aviation_inventory (
     current_stock NUMERIC NOT NULL,
     batch_no TEXT,
     dom DATE,
+    expiry_date DATE,
     category TEXT NOT NULL
 );
 
