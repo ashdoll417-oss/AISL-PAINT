@@ -115,16 +115,21 @@
             </div>
         </header>
         
-        <!-- Content Area -->
+<!-- Content Area -->
         <main class="p-8">
             {% block content %}{% endblock %}
         </main>
+        
+        <!-- Auto-Refresh Footer -->
+        <footer class="fixed bottom-0 right-0 mr-4 mb-2 text-xs text-gray-400">
+            <span id="lastUpdated">Last updated: --:--</span>
+        </footer>
     </div>
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Logout Confirmation Script -->
+<!-- Logout Confirmation Script -->
     <script>
         function confirmLogout(event) {
             // Show confirmation dialog with the specific message
@@ -139,6 +144,55 @@
             // Allow the link to navigate to /logout
             return true;
         }
+        
+        // Auto-Refresh Functionality
+        (function() {
+            var isTyping = false;
+            var refreshInterval = 1800000; // 30 minutes in milliseconds
+            var lastUpdatedElement = document.getElementById('lastUpdated');
+            
+            // Track when user is typing in any form input
+            document.addEventListener('input', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                    isTyping = true;
+                }
+            });
+            
+            // Reset typing flag when user stops typing for 2 seconds
+            document.addEventListener('input', function(e) {
+                clearTimeout(window.typingTimer);
+                window.typingTimer = setTimeout(function() {
+                    isTyping = false;
+                }, 2000);
+            });
+            
+            // Function to update the last updated time and refresh
+            function refreshPage() {
+                var now = new Date();
+                var timeString = now.toLocaleTimeString();
+                
+                if (lastUpdatedElement) {
+                    lastUpdatedElement.textContent = 'Last updated: ' + timeString;
+                }
+                
+                // Only refresh if user is not typing
+                if (!isTyping) {
+                    location.reload();
+                } else {
+                    // Try again in 1 minute if user is typing
+                    setTimeout(refreshPage, 60000);
+                }
+            }
+            
+            // Start the auto-refresh timer
+            setInterval(refreshPage, refreshInterval);
+            
+            // Initialize the last updated text on page load
+            if (lastUpdatedElement) {
+                var now = new Date();
+                lastUpdatedElement.textContent = 'Last updated: ' + now.toLocaleTimeString();
+            }
+        })();
     </script>
     
     {% block extra_js %}{% endblock %}
