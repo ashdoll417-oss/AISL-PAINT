@@ -1,0 +1,44 @@
+Flask + Supabase Setup Commands (Windows):
+
+1. Create & Activate Virtual Environment:
+`
+python -m venv venv
+venv\Scripts\activate
+`
+
+2. Install Dependencies:
+`
+pip install flask==3.0.3 supabase==2.28.0 python-dotenv==1.0.1 gunicorn==23.0.0
+`
+
+3. Generate requirements.txt:
+`
+pip freeze > requirements.txt
+`
+
+4. Test Flask App:
+`
+python app.py
+`
+
+5. Deactivate (when done):
+`
+deactivate
+`
+
+### Render Deploy Files Ready:
+`
+✅ requirements.txt (pip freeze generated)
+✅ Procfile (web: gunicorn app:app)
+✅ app.py (Supabase + routes)
+✅ .env (SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+### Quick Render Setup:
+1. Push to GitHub
+2. Connect Render
+3. Add Env Vars: SUPABASE_URL + SUPABASE_SERVICE_KEY
+4. Deploy! → https://your-app.onrender.com/admin
+
+All set! 🎉
+
+Current project already has these files ready.

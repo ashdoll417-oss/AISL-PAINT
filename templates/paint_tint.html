@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Tinting - Aviation ERP Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <div class="w-24 h-24 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl">
+                <i class="bi bi-palette2 text-4xl text-white"></i>
+            </div>
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-3">
+                Paint Tinting Station
+            </h1>
+            <p class="text-xl text-gray-600">{{ greeting }}</p>
+        </div>
+
+        <!-- Tinting Form -->
+        <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 mb-12 border border-white/50">
+            <form method="POST" id="tintForm">
+                <!-- Client Name -->
+                <div class="mb-8">
+                    <label class="block text-lg font-semibold text-gray-800 mb-3">Client Name *</label>
+                    <input type="text" name="client_name" required 
+                           class="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/30 focus:border-purple-500 text-xl font-medium transition-all" 
+                           placeholder="Enter client name for recipe">
+                </div>
+
+                <!-- Base Kit Selection -->
+                <div class="mb-8">
+                    <label class="block text-lg font-semibold text-gray-800 mb-3">Select Paint Kit (Base) *</label>
+                    <select name="base_kit_part" id="baseKitSelect" required class="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:border-blue-500 text-xl font-medium transition-all">
+                        <option value="">Choose kit...</option>
+                        {% for kit in kits %}
+                        <option value="{{ kit.part_number }}" data-stock="{{ kit.current_stock }}">
+                            {{ kit.part_number }} - {{ kit.description }} ({{ kit.current_stock }} units available)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Tinting Bases (Dynamic) -->
+                <div id="tintSection">
+                    <label class="block text-lg font-semibold text-gray-800 mb-3">Tinting Bases (ML amounts)</label>
+                    <div id="tintInputs" class="space-y-4">
+                        <!-- Dynamic tints added via JS -->
+                    </div>
+                    <button type="button" onclick="addTintInput()" class="mt-4 px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
+                        <i class="bi bi-plus-circle"></i> Add Tint
+                    </button>
+                </div>
+
+                <!-- Save Recipe Checkbox -->
+                <div class="mt-8 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-dashed border-yellow-200 rounded-2xl">
+                    <label class="flex items-center gap-3">
+                        <input type="checkbox" name="save_recipe" id="saveRecipe" class="w-5 h-5 text-yellow-600 rounded">
+                        <span class="text-lg font-semibold text-gray-800">💾 Save this recipe for <span id="recipeClientName" class="font-mono bg-yellow-100 px-2 py-1 rounded">Client Name</span>?</span>
+                    </label>
+                    <p class="ml-8 mt-1 text-sm text-gray-600 italic">Future staff can reuse exact tint ratios</p>
+                </div>
+
+                <!-- Submit -->
+                <div class="mt-10 flex gap-4">
+                    <button type="submit" class="flex-1 px-10 py-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-xl font-bold text-white rounded-3xl shadow-2xl hover:shadow-3xl hover:-translate-y-1 transition-all duration-300">
+                        <i class="bi bi-check-circle-fill"></i> Complete Tinting
+                    </button>
+                    <button type="reset" class="px-10 py-5 bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600 text-xl font-semibold text-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Recent Recipes -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Recent Recipes -->
+            <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                    <i class="bi bi-bookmark-star"></i> Recent Recipes
+                </h2>
+                <div class="space-y-3 max-h-96 overflow-y-auto">
+                    {% for recipe in recipes %}
+                    <div class="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-2xl hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="font-semibold text-gray-900">{{ recipe.recipe_name }}</h4>
+                                <p class="text-sm text-gray-600">{{ "%.0f"|format(recipe.total_volume_ml) }}ml total</p>
+                            </div>
+                            <span class="px-3 py-1 bg-white text-xs font-bold text-purple-700 rounded-full border">
+                                {{ recipe.used_count }} uses
+                            </span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-12 text-gray-500">
+                        <i class="bi bi-star text-5xl mb-4 opacity-50"></i>
+                        <p>No saved recipes yet</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                    <i class="bi bi-speedometer2"></i> Tinting Stats
+                </h2>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="p-4 bg-gradient-to-b from-blue-50 to-blue-100 rounded-2xl border">
+                        <div class="text-3xl font-bold text-blue-700">{{ kits|length }}</div>
+                        <div class="text-sm text-blue-600 font-medium">Available Kits</div>
+                    </div>
+                    <div class="p-4 bg-gradient-to-b from-emerald-50 to-emerald-100 rounded-2xl border">
+                        <div class="text-3xl font-bold text-emerald-700">{{ tints|length }}</div>
+                        <div class="text-sm text-emerald-600 font-medium">Tint Bases</div>
+                    </div>
+                    <div class="p-4 bg-gradient-to-b from-purple-50 to-purple-100 rounded-2xl border">
+                        <div class="text-3xl font-bold text-purple-700">{{ recipes|length }}</div>
+                        <div class="text-sm text-purple-600 font-medium">Saved Recipes</div>
+                    </div>
+                    <div class="p-4 bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl border">
+                        <div class="text-3xl font-bold text-orange-700">{{ total_tinted_recipes or 0 }}</div>
+                        <div class="text-sm text-orange-600 font-medium">Total Tinted</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tintIndex = 0;
+        
+        // Update recipe name preview
+        document.querySelector('input[name="client_name"]').addEventListener('input', function() {
+            const client = this.value;
+            document.getElementById('recipeClientName').textContent = client || 'Client Name';
+        });
+
+        // Dynamic tint inputs
+        function addTintInput() {
+            const container = document.getElementById('tintInputs');
+            const index = tintIndex++;
+            
+            const html = `
+                <div class="flex gap-3 p-4 bg-white border-2 border-dashed border-gray-200 rounded-2xl hover:border-blue-300 hover:shadow-md transition-all group" data-index="${index}">
+                    <select name="tint_parts[]" required class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">Select tint base...</option>
+                        ${{{ tints|tojson|safe }}.map(t => `<option value="${t.part_number}" data-stock="${t.current_stock}">${t.part_number} - ${t.description} (${t.current_stock}ml)</option>`).join('')}
+                    </select>
+                    <input type="number" name="tint_ml[]" min="1" max="500" step="0.1" required 
+                           placeholder="ML" class="w-28 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button type="button" onclick="removeTintInput(${index})" class="w-12 h-14 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+
+        function removeTintInput(index) {
+            document.querySelector(`[data-index="${index}"]`).remove();
+        }
+
+        // Kit stock validation
+        document.getElementById('baseKitSelect').addEventListener('change', function() {
+            const stock = this.selectedOptions[0]?.dataset.stock || 0;
+            if (parseFloat(stock) < 1) {
+                this.style.borderColor = '#ef4444';
+                alert('Selected kit is out of stock!');
+            } else {
+                this.style.borderColor = '#10b981';
+            }
+        });
+
+        // Form validation
+        document.getElementById('tintForm').addEventListener('submit', function(e) {
+            const kit = document.getElementById('baseKitSelect').value;
+            const tints = document.querySelectorAll('input[name="tint_ml[]"]').length;
+            
+            if (!kit) {
+                e.preventDefault();
+                alert('Please select a paint kit');
+                return;
+            }
+            
+            if (tints === 0) {
+                e.preventDefault();
+                alert('Please add at least one tint base');
+                return;
+            }
+        });
+    </script>
+
+    <style>
+        /* Custom scrollbar */
+        .space-y-4::-webkit-scrollbar {
+            width: 6px;
+        }
+        .space-y-4::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 3px;
+        }
+        .space-y-4::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carpet Woven Staff Interface - Aviation ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-emerald-50 to-teal-50 min-h-screen">
+    <div class="container mx-auto px-4 py-12 max-w-2xl">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <div class="w-28 h-28 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl">
+                <i class="bi bi-grid-3x3-gap text-5xl text-white"></i>
+            </div>
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 bg-clip-text text-transparent mb-4">
+                Carpet Woven Staff Interface
+            </h1>
+            <p class="text-xl text-gray-600 mb-2">ID: 3 | Convert Inches → Meters | Check Stock</p>
+            <p class="text-2xl font-bold text-emerald-700">{{ greeting }}</p>
+        </div>
+
+        <!-- Current Stock Display -->
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 mb-12 text-center border border-emerald-200">
+            <div class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-2xl mb-6">
+                <i class="bi bi-box-seam text-emerald-600 text-2xl"></i>
+                <span class="text-4xl font-bold text-gray-900">Carpet Woven</span>
+                <span class="px-4 py-2 bg-emerald-600 text-white text-xl font-bold rounded-xl ml-4">
+                    {{ current_stock|float }} Meters Available
+                </span>
+            </div>
+            <p class="text-lg text-gray-600">opening_stock ready for orders</p>
+        </div>
+
+        <!-- Conversion Form -->
+        <form method="POST" class="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-10 border border-gray-200 mb-12">
+            <div class="text-center mb-10">
+                <div class="mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mb-4 shadow-xl">
+                    <i class="bi bi-rulers text-4xl text-white"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-800 mb-2">Customer Order</h2>
+                <p class="text-xl text-gray-600">Enter inches → Converts to Meters + Stock Check</p>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Inches Input -->
+                <div>
+                    <label class="block text-xl font-semibold text-gray-800 mb-4 text-center">Customer Order (Inches)</label>
+                    <div class="relative">
+                        <input type="number" name="inches" id="inchesInput" min="1" step="0.1" required
+                               class="w-full text-center text-5xl font-bold py-12 px-8 border-4 border-dashed border-blue-300 rounded-3xl bg-gradient-to-r from-blue-50 to-indigo-50 focus:ring-8 focus:ring-blue-500/20 shadow-xl transition-all duration-500 hover:shadow-2xl" 
+                               placeholder="50">
+                        <div class="absolute right-6 top-1/2 -translate-y-1/2 text-3xl text-blue-500 font-bold">inches</div>
+                    </div>
+                </div>
+
+                <!-- Results Preview -->
+                <div id="previewSection" class="text-center space-y-4 p-8 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl border-2 border-indigo-200 hidden">
+                    <div class="text-6xl font-bold text-indigo-700 mb-2" id="metersPreview">1.27</div>
+                    <div class="text-4xl font-bold text-gray-700 mb-1">Meters Required</div>
+                    <div class="space-y-2">
+                        <div class="flex justify-center items-center gap-4 text-xl">
+                            <span class="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl font-semibold">
+                                <i class="bi bi-check-circle"></i> Enough Stock
+                            </span>
+                            <span id="stockAmount" class="text-2xl font-bold text-gray-800">25.4 Meters left</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stock Warning -->
+                <div id="warningSection" class="p-8 bg-gradient-to-r from-red-50 to-orange-50 rounded-3xl border-2 border-red-200 hidden">
+                    <div class="flex flex-col items-center gap-4">
+                        <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                            <i class="bi bi-exclamation-triangle text-3xl text-red-500"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-red-800">Stock Warning</h3>
+                        <p id="warningText" class="text-lg text-red-700">Not enough stock for this order</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="mt-12 flex gap-6 justify-center">
+                <button type="submit" class="px-16 py-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-xl font-bold text-white rounded-3xl shadow-2xl hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 group">
+                    <span class="group-hover:hidden">
+                        <i class="bi bi-check-lg"></i> Fulfill Order
+                    </span>
+                    <span class="hidden group-hover:inline">
+                        <i class="bi bi-check2-all"></i> Process Sale
+                    </span>
+                </button>
+                <button type="button" onclick="resetForm()" class="px-12 py-6 bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600 text-xl font-semibold text-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                </button>
+            </div>
+        </form>
+
+        <!-- How to Use -->
+        <div class="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl p-8 border mt-12">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <i class="bi bi-info-circle"></i> How It Works
+            </h3>
+            <div class="grid md:grid-cols-3 gap-6 text-center">
+                <div>
+                    <div class="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <i class="bi bi-rulers text-2xl text-blue-600"></i>
+                    </div>
+                    <h4 class="font-semibold text-lg mb-2">Enter Inches</h4>
+                    <p class="text-gray-600">Customer gives measurement in inches</p>
+                </div>
+                <div>
+                    <div class="w-20 h-20 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <i class="bi bi-calculator text-2xl text-emerald-600"></i>
+                    </div>
+                    <h4 class="font-semibold text-lg mb-2">Auto Convert</h4>
+                    <p class="text-gray-600">Converts to Meters instantly</p>
+                </div>
+                <div>
+                    <div class="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <i class="bi bi-check-circle text-2xl text-orange-600"></i>
+                    </div>
+                    <h4 class="font-semibold text-lg mb-2">Stock Check</h4>
+                    <p class="text-gray-600">Verifies opening_stock availability</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CARPET_WOVEN_ID = 3;
+        let currentStock = {{ current_stock|tojson }};
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            updatePreview();
+        });
+        
+        document.getElementById('inchesInput').addEventListener('input', function() {
+            updatePreview();
+        });
+        
+        function updatePreview() {
+            const inches = parseFloat(this.value) || 0;  // 'this' refers to inchesInput
+            
+            if (inches <= 0) {
+                hidePreview();
+                return;
+            }
+            
+            // Convert inches to meters (1 inch = 0.0254 meters)
+            const meters = inches * 0.0254;
+            
+            // Show preview
+            document.getElementById('metersPreview').textContent = meters.toFixed(2);
+            document.getElementById('previewSection').classList.remove('hidden');
+            
+            // Stock check
+            if (meters > currentStock) {
+                document.getElementById('stockAmount').textContent = `${currentStock.toFixed(1)} Meters available`;
+                document.getElementById('stockAmount').classList.add('text-red-600');
+                document.querySelector('#previewSection span').classList.remove('bg-emerald-100', 'text-emerald-800');
+                document.querySelector('#previewSection span').classList.add('bg-red-100', 'text-red-800');
+                document.querySelector('#previewSection span').innerHTML = '<i class="bi bi-exclamation-triangle"></i> Insufficient Stock';
+                document.getElementById('warningSection').classList.remove('hidden');
+                document.getElementById('warningText').textContent = `Required ${meters.toFixed(2)}M > Available ${currentStock.toFixed(1)}M`;
+            } else {
+                document.getElementById('stockAmount').textContent = `${(currentStock - meters).toFixed(1)} Meters left`;
+                document.getElementById('stockAmount').classList.remove('text-red-600');
+                document.querySelector('#previewSection span').classList.remove('bg-red-100', 'text-red-800');
+                document.querySelector('#previewSection span').classList.add('bg-emerald-100', 'text-emerald-800');
+                document.querySelector('#previewSection span').innerHTML = '<i class="bi bi-check-circle"></i> Enough Stock';
+                document.getElementById('warningSection').classList.add('hidden');
+            }
+        }
+        
+        function hidePreview() {
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('warningSection').classList.add('hidden');
+        }
+        
+        function resetForm() {
+            document.getElementById('inchesInput').value = '';
+            hidePreview();
+            document.getElementById('inchesInput').focus();
+        }
+    </script>
+</body>
+</html>
