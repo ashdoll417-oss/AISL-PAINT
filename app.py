@@ -178,3 +178,6 @@ def add_stock():
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
 
+@app.route('/api/stock/update', methods=['POST', 'OPTIONS'], strict_slashes=False)
+def stock_update_alias():
+    return update_stock_v2()
