@@ -210,6 +210,24 @@ def generate_barcode(part_number):
     # Returns the barcode as an image for the browser to display or print
     return send_file(buffer, mimetype='image/png')
 
+@app.route('/api/stock/update', methods=['POST'])
+def update_stock_api():
+    try:
+        supabase = get_supabase()
+        data = request.json
+        item_id = data.get('id')
+        new_qty = data.get('quantity')
+
+        # Update the 'aviation_inventory' table in Supabase
+        result = supabase.table('aviation_inventory').update({"quantity": new_qty}).eq('id', item_id).execute()
+
+        if result.data:
+            return jsonify({"success": True, "message": "Stock updated"}), 200
+        else:
+            return jsonify({"success": False, "message": "Item not found in database"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 if __name__ == '__main__':
 
     print("🚀 Aviation ERP Admin Portal - Render Deployment Ready")
@@ -219,4 +237,5 @@ if __name__ == '__main__':
     print("📈 Stock History: http://localhost:5000/stock-history")
     print("📦 Deploy: gunicorn app:app")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
