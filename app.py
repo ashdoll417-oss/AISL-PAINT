@@ -7,7 +7,10 @@ Gunicorn production ready for Render deployment
 """
 
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import barcode
+from barcode.writer import ImageWriter
+from io import BytesIO
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from database import get_supabase_service_client
 from datetime import datetime
 from dotenv import load_dotenv
@@ -193,6 +196,19 @@ def usage_reports():
         print(f"Usage reports error: {e}")
         flash(f'Usage reports error: {str(e)}', 'danger')
         return render_template('usage_reports.html', report_data=[])
+
+@app.route('/generate-barcode/<part_number>')
+def generate_barcode(part_number):
+    # Create a Code128 barcode
+    EAN = barcode.get_barcode_class('code128')
+    ean = EAN(part_number, writer=ImageWriter())
+    
+    buffer = BytesIO()
+    ean.write(buffer)
+    buffer.seek(0)
+    
+    # Returns the barcode as an image for the browser to display or print
+    return send_file(buffer, mimetype='image/png')
 
 if __name__ == '__main__':
 

@@ -96,7 +96,13 @@
             <tbody class="divide-y divide-gray-200">
                 {% for item in inventory %}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap font-mono font-semibold">{{ item.part_number or 'N/A' }}</td>
+                    <td class="px-6 py-4">
+                        {{ item.part_number or 'N/A' }}
+                        <br>
+                        <a href="/generate-barcode/{{ item.part_number }}" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm underline">
+                            <i class="fas fa-barcode"></i> Print Label
+                        </a>
+                    </td>
                     <td class="px-6 py-4 max-w-md">{{ item.description or 'No description' }}</td>
                     <td class="px-6 py-4 font-semibold text-lg text-primary">{{ item.current_stock or 0 }}</td>
                     <td class="px-6 py-4 text-sm text-gray-500">{{ item.uom or 'N/A' }}</td>
