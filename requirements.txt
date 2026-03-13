@@ -19,6 +19,7 @@ fastapi==0.135.1
 Flask==3.0.3
 Flask-Bootstrap==3.3.7.1
 flask-bootstrap5==0.1.dev1
+flask-cors==6.0.2
 Flask-Login==0.6.3
 fonttools==4.62.0
 fpdf2==2.8.7
