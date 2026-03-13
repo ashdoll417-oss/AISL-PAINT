@@ -108,12 +108,19 @@ def stock_history():
     try:
         supabase = get_supabase()
         
-        # Fetch all stock_logs ordered desc, with aviation_inventory join for description
-        history_resp = supabase.table('stock_logs').select("""
+        # Fetch stock_logs with optional search on part_number, always joined with aviation_inventory(description)
+        query = supabase.table('stock_logs').select("""
             *,
             aviation_inventory(description)
-        """).order('created_at', direction='desc').execute()
+        """).order('created_at', direction='desc')
+        
+        search_query = request.args.get('search', '')
+        if search_query:
+            query = query.ilike('part_number', f'%{search_query}%')
+        
+        history_resp = query.execute()
         history = history_resp.data or []
+
         
         return render_template('stock_logs.html', logs=history, greeting=get_greeting())
     except Exception as e:
