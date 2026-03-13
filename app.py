@@ -22,6 +22,26 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-change-me')
 # Bootstrap via CDN in base.html - no flask_bootstrap needed
 
+# Place this at the TOP of app.py, right after app = Flask(__name__)
+@app.route('/api/stock/update', methods=['POST', 'OPTIONS'])
+def update_stock_direct():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    try:
+        data = request.get_json()
+        item_id = data.get('id')
+        new_qty = data.get('quantity')
+        
+        # Immediate sync to Supabase
+        supabase_client = get_supabase()
+        res = supabase_client.table('aviation_inventory').update({'quantity': new_qty}).eq('id', item_id).execute()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        print(f"Update Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 def get_supabase():
     """Get Supabase service client (SUPABASE_SERVICE_KEY)."""
     return get_supabase_service_client()
