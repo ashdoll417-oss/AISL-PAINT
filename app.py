@@ -92,6 +92,36 @@ def view_order(order_id):
         
     return render_template('view_order.html', order=res.data[0])
 
+@app.route('/add-stock', methods=['POST'])
+def add_stock():
+    category = request.form.get('category')
+    unit = request.form.get('unit_type')
+    raw_qty = float(request.form.get('quantity', 0))
+    
+    # The Calculator: Convert Inches to Yards for Carpets
+    if category == 'Carpet' and unit == 'Inches':
+        final_qty = raw_qty / 36
+        unit_label = 'Yards'
+    else:
+        final_qty = raw_qty
+        unit_label = unit
+
+    # Save to Supabase
+    supabase = get_supabase()
+    new_item = {
+        "part_number": request.form.get('part_number'),
+        "description": request.form.get('description'),
+        "current_stock": final_qty,
+        "uom": unit_label,
+        "color_type": request.form.get('color_type') if category == 'Carpet' else None,
+        "supplier_id": request.form.get('supplier_id'),
+        "min_threshold": request.form.get('min_threshold', 10)
+    }
+    supabase.table('aviation_inventory').insert(new_item).execute()
+    
+    flash('Stock item added successfully!', 'success')
+    return redirect(url_for('manage_stock_and_po'))
+
 @app.route('/stock-history')
 def stock_history():
     """Stock history: all records from stock_logs (desc) joined with aviation_inventory for descriptions."""
@@ -165,7 +195,6 @@ def usage_reports():
         return render_template('usage_reports.html', report_data=[])
 
 if __name__ == '__main__':
-
 
     print("🚀 Aviation ERP Admin Portal - Render Deployment Ready")
     print("📊 Dashboard: http://localhost:5000/admin")
