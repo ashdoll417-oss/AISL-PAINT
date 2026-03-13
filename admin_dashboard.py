@@ -312,27 +312,53 @@ async def sales(request: Request):
 
 @app.get("/purchase-orders")
 async def purchase_orders(request: Request):
-    """Purchase Orders page for Aero Instrument Service Ltd."""
+    """Purchase Orders page - fetches all aviation_inventory + suppliers for dropdowns."""
     greeting = get_time_greeting()
+    supabase = get_supabase_client()
     
-    # Generate PO number
-    now = datetime.now()
-    po_number = f"PO-{now.strftime('%y')}-{now.strftime('%m')}{now.strftime('%d')}-{now.strftime('%H%M%S')}"
-    
-    # Get current date
-    current_date = now.strftime('%Y-%m-%d')
-    
-    return templates.TemplateResponse(
-        "purchase_order.html",
-        {
-            "request": request,
-            "greeting": greeting,
-            "page_title": "Purchase Orders",
-            "page_icon": "basket",
-            "po_number": po_number,
-            "current_date": current_date
-        }
-    )
+    try:
+        # Fetch ALL suppliers
+        suppliers_response = supabase.table("suppliers").select("id, supplier_name").order("supplier_name").execute()
+        suppliers = suppliers_response.data or []
+        
+        # Fetch ALL products for dropdowns (part_number, description)
+        inventory_response = supabase.table("aviation_inventory").select("part_number, description, uom, current_stock").execute()
+        inventory = inventory_response.data or []
+        
+        # Generate PO number
+        now = datetime.now()
+        po_number = f"PO-{now.strftime('%y')}-{now.strftime('%m')}{now.strftime('%d')}-{now.strftime('%H%M%S')}"
+        current_date = now.strftime('%Y-%m-%d')
+        
+        return templates.TemplateResponse(
+            "purchase_order.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Purchase Orders",
+                "page_icon": "basket",
+                "po_number": po_number,
+                "current_date": current_date,
+                "suppliers": suppliers,  # For server-side dropdown or JS
+                "inventory": inventory   # All products for dropdowns
+            }
+        )
+    except Exception as e:
+        print(f"Purchase orders page error: {e}")
+        # Fallback empty lists
+        return templates.TemplateResponse(
+            "purchase_order.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Purchase Orders",
+                "page_icon": "basket",
+                "po_number": po_number,
+                "current_date": current_date,
+                "suppliers": [],
+                "inventory": []
+            }
+        )
 
 
 @app.post("/api/purchase-order/save")
@@ -903,27 +929,52 @@ async def update_preferred_supplier(part_number: str, supplier_id: str):
 
 @app.get("/quote")
 async def quote(request: Request):
-    """Quote Generator page for Aero Instrument Service Ltd."""
+    """Quote Generator - fetches all aviation_inventory + suppliers for dropdowns."""
     greeting = get_time_greeting()
+    supabase = get_supabase_client()
     
-    # Generate quote number
-    now = datetime.now()
-    quote_number = f"QTE-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
-    
-    # Get current date
-    current_date = now.strftime('%d/%m/%Y')
-    
-    return templates.TemplateResponse(
-        "quote.html",
-        {
-            "request": request,
-            "greeting": greeting,
-            "page_title": "Quote Generator",
-            "page_icon": "file-earmark-text",
-            "quote_number": quote_number,
-            "current_date": current_date
-        }
-    )
+    try:
+        # Fetch ALL suppliers (though not used in quote, for consistency)
+        suppliers_response = supabase.table("suppliers").select("id, supplier_name").order("supplier_name").execute()
+        suppliers = suppliers_response.data or []
+        
+        # Fetch ALL products for dropdowns
+        inventory_response = supabase.table("aviation_inventory").select("part_number, description, uom, current_stock").execute()
+        inventory = inventory_response.data or []
+        
+        # Generate quote number
+        now = datetime.now()
+        quote_number = f"QTE-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
+        current_date = now.strftime('%d/%m/%Y')
+        
+        return templates.TemplateResponse(
+            "quote.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Quote Generator",
+                "page_icon": "file-earmark-text",
+                "quote_number": quote_number,
+                "current_date": current_date,
+                "suppliers": suppliers,
+                "inventory": inventory
+            }
+        )
+    except Exception as e:
+        print(f"Quote page error: {e}")
+        return templates.TemplateResponse(
+            "quote.html",
+            {
+                "request": request,
+                "greeting": greeting,
+                "page_title": "Quote Generator",
+                "page_icon": "file-earmark-text",
+                "quote_number": quote_number,
+                "current_date": current_date,
+                "suppliers": [],
+                "inventory": []
+            }
+        )
 
 
 @app.get("/api/inventory/search")

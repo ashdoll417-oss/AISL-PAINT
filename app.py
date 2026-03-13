@@ -81,21 +81,21 @@ def stock_management():
                            suppliers=suppliers_list, 
                            inventory=inventory)
 
-@app.route('/view-order/<order_id>')
-@app.route('/print-order/<order_id>')
+@app.route('/view-order/<int:order_id>')
+@app.route('/print-order/<int:order_id>')
 def view_order(order_id):
-    """View/Print specific completed order from sales table."""
+    """View/Print specific order - integer ID from sales table."""
     try:
         supabase = get_supabase()
         
-        # Query sales with aviation_inventory join using .eq('id', order_id)
-        order_resp = supabase.table('sales').select('*, aviation_inventory(*)').eq('id', order_id).execute()
+        # Use integer ID to find sale
+        result = supabase.table('sales').select('*, aviation_inventory(*)').eq('id', order_id).execute()
         
-        if not order_resp.data:
-            flash('Order ID ' + order_id + ' not found in Sales table.', 'warning')
+        if not result.data:
+            flash(f'Order ID {order_id} not found.', 'warning')
             return redirect(url_for('root'))
         
-        order = order_resp.data[0]
+        order = result.data[0]
         return render_template('order_print.html', order=order)
     except Exception as e:
         print(f"View/Print order error: {e}")
