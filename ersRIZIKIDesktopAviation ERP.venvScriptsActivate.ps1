@@ -1,0 +1,88 @@
+[33m18f0261[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/main[m[33m)[m Update app.py with fixed routes and add render.yaml for deployment
+[33ma370c7a[m Fix stock_update_alias function reference
+[33m8723b17[m Alias /api/stock/update -> v2 (fix templates/stock.html)
+[33m9d0b6a9[m ULTIMATE FIX: Resolve all Render 500/404 from logs (inventory stock search orders)
+[33m211d1c0[m Deploy fixed app.py: all 404/500 resolved (stock inventory search view-order)
+[33m5b6953e[m V2 Update: Bypassing cache and adding fail-proof logging
+[33md96fac3[m FINAL FIX: Aligned keys, removed duplicates, and synced with Supabase current_stock
+[33m640e511[m FIX: Aligned Python keys with JS new_quantity and Supabase current_stock
+[33m68b48bc[m Add flask-cors for production CORS + updated deps
+[33m3d7d2b4[m SAFETY NET: Enhanced /api/stock/update with JSON+form fallback, Render debug logs, kill 404 bug
+[33m0c75e42[m Update TODO.md with completed task status
+[33m356fb6c[m NUCLEAR FIX: Hardcoding /api/stock/update at top of file
+[33m52be4a4[m Fix: Updated /api/stock/update to exact frontend-expected format (update_stock, get_json, status response)
+[33m8d529d4[m Fix: Added /api/stock/update route to match frontend JS call
+[33m7934f45[m FINAL DEMO PREP: Barcode generator added, scanner fixed, and carpet calculator live
+[33me366621[m Demo Prep: Fixed scanner logic, added Inch-to-Yard calculator, and fixed update-stock ID error
+[33m1a5972d[m Demo Prep: Added unit calculator, carpet color fields, and fixed barcode scanning
+[33m051991c[m Emergency Fix: Synced app.py with Supabase table names and fixed View Order JSON error
+[33mcfcc658[m Admin Site Polish: Fixed all dropdown visibility, report JSON errors, and View Order routes
+[33m8cdb655[m Admin Polish: Fixed search in logs, fixed JSON report errors, and synced product dropdowns
+[33mb2d2848[m URGENT: Fixed cross-route data visibility, dropdowns, and JSON report errors
+[33med4a166[m URGENT: Full Admin Sync - Fixed all dropdowns, product visibility, and JSON report errors
+[33m9592af9[m fix: stock-management route + template sync (plural tables, correct loops) (BLACKBOXAI)
+[33m186e0f2[m Final fixes: order view/print + stock barcode/expiry + requirements
+[33m465ac5f[m feat(render): Add stock-management, view-order/id, stock-history routes
+[33m4ac2279[m Fix: Order not found error and Supplier dropdown logic
+[33mc12b43b[m Fixed supplier dropdown and polished stock management
+[33mb02857b[m Complete Flask Admin + Supabase Auth + Role RBAC + Order View Fix
+[33meff54d7[m Flask Admin App + Supabase complete: app.py, requirements.txt, Procfile
+[33m394c830[m Admin site update
+[33m0b79f59[m[33m ([m[1;31morigin/master[m[33m)[m Fix: Add /supplier redirect and remove duplicate /suppliers route
+[33m87f597c[m Add Python function to insert supplier into Supabase
+[33m223d374[m Add RLS fix SQL script and Supabase table checker
+[33m1ee3cdc[m Universal fail-safe: Handling missing columns in Python logic
+[33m8233808[m Complete fail-safe /api/low-stock/count: fetch only current_stock, manual calc with threshold 5
+[33m49f5ccb[m Fix get_low_stock_items() to exclude min_threshold from SQL query
+[33m919c049[m Hard fix for min_threshold: Moving logic to Python to bypass SQL error 42703
+[33m359247a[m Final fail-safe for min_threshold and usage report HTML
+[33m5ab647e[m Hard-coded column selection to bypass schema cache error
+[33m22295f5[m Final fix for min_threshold column and data types
+[33m8ca946a[m Fixed: Removed unused templating import
+[33mcf78e0e[m Fixed: Added eslint comments to suppress false positive JS errors
+[33m36bc773[m Feature: Added Preferred Supplier dropdown to stock form and table display
+[33mc215255[m Fix: Corrected add-item route syntax and improved error handling
+[33m698cba7[m Fix: Stock page min_threshold and default value
+[33m64cf81e[m Fix: Data visibility in tables and JSON-to-HTML report fix
+[33meb278a2[m Add Scan-and-Go feature with auto-submit and beep sound
+[33m33ed0b2[m Move barcode issuing logic to dedicated staff site
+[33m4b2e4aa[m Fix: Supplier entry error and enabled Order printing
+[33mc01b371[m Fix: Add python-multipart for form parsing
+[33m39369a2[m Add smart auto-refresh every 30 mins to Admin Dashboard
+[33m03ffdd1[m Add Monthly Usage Reports with Chart.js and CSV export
+[33m632b141[m Add one-click Purchase Order generation from low-stock alerts
+[33mc6f44ed[m Add automatic flashing low stock alerts to dashboard
+[33m282b0c2[m Add Stock Logs page with search functionality for admin
+[33m9373c54[m Add dedicated stock issuing workflow with staff name, barcode, quantity
+[33m269dfef[m Add barcode scanning and staff stock issuing logic
+[33m178aaec[m Add barcode ID field with smart duplicate check and auto-focus
+[33m1103974[m Add barcode support for hardware scanner integration
+[33meec7575[m Updated Purchase Order - strict supplier dropdown selection
+[33m8417d3c[m Add Suppliers section with dropdown integration in Purchase Orders
+[33m739f54b[m Add smart batch and expiry logic for paint and carpet
+[33m8abc050[m Convert JSON routes to HTML templates and add stock form
+[33m1fc19e6[m Fix: Use Nairobi timezone for time-based greeting
+[33m1ff005b[m Fix: Set root route to serve HTML Dashboard instead of JSON
+[33m01df5c3[m Fix to deploy Admin Dashboard
+[33mf71d2bc[m Add Admin Approvals page for PO management
+[33m417caac[m Add Purchase Order system with admin approval workflow
+[33m86db25d[m Add Quote Generator page for Aero Instrument Service Ltd
+[33mc4ac8b1[m Add Sidebar and Admin Dashboard
+[33m40d19ed[m Update with Tailwind CSS styling and improved dashboard
+[33m2c050da[m Add Sidebar Navigation and Admin Dashboard
+[33m7db0778[m Add FastAPI Admin Dashboard with Jinja2 templates
+[33m63b4342[m Add display_name field for Carpet items with [COLOR/TYPE] - [DESCRIPTION] format
+[33m0b8df92[m Update main.py with time-based greeting, aviation_inventory table, paint kit notes, and Linear Meters handling
+[33maf15082[m Add aviation_inventory table SQL script
+[33mf6fce69[m Add time greeting and specific paint/carpet filters
+[33mf5438b8[m Add FastAPI main.py with inventory endpoints
+[33mf2acdf9[m Add inventory table SQL script
+[33ma0c9320[m Add paint/carpet logic and time greeting
+[33m25db2a3[m Add carpet categories and time-based greeting
+[33m042d2f1[m Rename main file to erp.py
+[33m6a8827d[m Resolve merge conflict in .gitignore
+[33m75924e2[m Update requirements with all frozen dependencies
+[33m3866eab[m Add pinned versions for dependencies
+[33mf659560[m Add requirements for Render build
+[33mc9e7e38[m Initial commit
+[33md325c6b[m Initial commit

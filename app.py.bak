@@ -11,18 +11,31 @@ def get_supabase():
     return get_supabase_service_client()
 
 # 1. FIX THE 404 UPDATE ROUTE
-@app.route('/api/stock/update', methods=['POST', 'OPTIONS'], strict_slashes=False)
-def update_stock():
+@app.route('/api/stock/update', methods=['POST', 'OPTIONS'])
+def update_stock_api():
     if request.method == 'OPTIONS': return '', 200
     try:
         data = request.get_json() or request.form
-        p_num = data.get('part_number')
-        new_qty = data.get('new_quantity')
+        # Try every possible ID name your frontend might be sending
+        item_id = data.get('id') or data.get('item_id') or data.get('product_id')
+        new_qty = data.get('new_quantity') or data.get('quantity')
+
+        print(f"DEBUG: Attempting update for ID: {item_id}, New Qty: {new_qty}")
+
+        supabase = get_supabase()
+        # We update using whatever ID we found
+        result = supabase.table('aviation_inventory').update({'current_stock': new_qty}).eq('id', item_id).execute()
         
-        # Using 'current_stock' and 'part_number' from your screenshot
-        res = get_supabase().table('aviation_inventory').update({'current_stock': new_qty}).eq('part_number', p_num).execute()
-        return jsonify({"success": True}), 200
+        if result.data:
+            return jsonify({"success": True}), 200
+        else:
+            # If ID failed, try part_number as a fallback
+            part_num = data.get('part_number')
+            result = supabase.table('aviation_inventory').update({'current_stock': new_qty}).eq('part_number', part_num).execute()
+            return jsonify({"success": True if result.data else False}), 200 if result.data else 404
+            
     except Exception as e:
+        print(f"DATABASE ERROR: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 # 2. FIX THE 500 INVENTORY ROUTE
